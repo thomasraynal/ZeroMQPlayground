@@ -4,7 +4,10 @@ using System.Text;
 
 namespace ZeroMQPlayground.PushPull
 {
-    class PeerRegisteredEvent
+    public enum DispatchMode
     {
+        Synchronous,
+        Asynchronous
     }
+
 }

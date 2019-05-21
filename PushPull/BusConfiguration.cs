@@ -6,7 +6,7 @@ namespace ZeroMQPlayground.PushPull
 {
     public class BusConfiguration
     {
-        string Endpoint { get; set; }
-        string PeerName { get; set; }
+        public string Endpoint { get; set; }
+        public string PeerName { get; set; }
     }
 }

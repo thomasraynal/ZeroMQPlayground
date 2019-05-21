@@ -6,8 +6,10 @@ namespace ZeroMQPlayground.Shared
 {
     public interface ITransportMessage
     {
-        String PeerId { get; set; }
+        Guid MessageId { get; set; }
         Type MessageType { get; set; }
         byte[] Message { get; set; }
+        bool IsResponse { get; set; }
+
     }
 }

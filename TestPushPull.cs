@@ -1,4 +1,5 @@
-﻿using NUnit.Framework;
+﻿using Microsoft.Extensions.Logging;
+using NUnit.Framework;
 using StructureMap;
 using System;
 using ZeroMQPlayground.PushPull;
@@ -11,6 +12,9 @@ namespace ZeroMQPlayground
     {
         public TestPushPullRegistry()
         {
+            For<ILogger>().Use<Logger>();
+            For<IDirectory>().Use<Directory>().Singleton();
+            For<ITransport>().Use<Transport>().Singleton();
             For<IEventHandler<MajorEventOccured>>().Use<MajorEventOccuredHandler>();
             For<IEventHandler<MinorEventOccured>>().Use<MinorEventOccuredHandler>();
 
@@ -46,6 +50,8 @@ namespace ZeroMQPlayground
             _bus.Subscribe<PeerRegisteredEvent>();
             _bus.Subscribe<MajorEventOccured>();
             _bus.Subscribe<MinorEventOccured>(ev => ev.Perimeter >= Perimeter.Infra);
+
+
         }
     }
 }

@@ -5,7 +5,6 @@ using ZeroMQPlayground.PushPull;
 
 namespace ZeroMQPlayground.Shared
 {
-
     public interface IMessageDispatcher
     {
         void Dispatch(TransportMessage message);

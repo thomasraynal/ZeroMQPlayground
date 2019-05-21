@@ -1,4 +1,5 @@
-﻿using System;
+﻿using StructureMap;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
@@ -9,6 +10,7 @@ namespace ZeroMQPlayground.Shared
     {
         IContainer Container { get; }
         IPeer Self { get; }
+        IEventHandler GetHandlers(Type message);
         void Register<TEvent>(IEventHandler<TEvent> @event) where TEvent : IEvent;
         Task<TCommandResult> Send<TCommandResult>(ICommand command) where TCommandResult : ICommandResult;
         void Emit(IEvent @event);

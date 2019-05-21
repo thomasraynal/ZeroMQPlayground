@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using ZeroMQPlayground.Shared;
 
 namespace ZeroMQPlayground.PushPull
 {
-    public class RegisterCommand
+    public class PeerRegisterCommand : ICommand
     {
-        public string PeerId { get; set; }
+        public IPeer Peer { get; set; }
     }
 }

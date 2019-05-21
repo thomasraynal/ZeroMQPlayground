@@ -10,8 +10,7 @@ namespace ZeroMQPlayground.PushPull
     public class Bus : IBus
     {
 
-        private List<IEventHandler> _handlers;
-        private readonly string _endpoint;
+        private readonly List<IEventHandler> _handlers;
 
         public IPeer Self { get; private set; }
         public IContainer Container { get; private set; }
@@ -45,6 +44,11 @@ namespace ZeroMQPlayground.PushPull
         }
 
         public void Subscribe<TEvent>() where TEvent : IEvent
+        {
+            throw new NotImplementedException();
+        }
+
+        public IEventHandler GetHandlers(Type message)
         {
             throw new NotImplementedException();
         }
