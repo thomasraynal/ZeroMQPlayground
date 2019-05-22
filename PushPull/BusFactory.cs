@@ -8,13 +8,20 @@ namespace ZeroMQPlayground.PushPull
 {
     public static class BusFactory
     {
-        public static IBus Create<TRegistry>(BusConfiguration configuration) where TRegistry : Registry
+        public static IBus Create<TRegistry>(IBusConfiguration configuration) where TRegistry : Registry
         {
             var container = new Container((conf) => conf.AddRegistry(Activator.CreateInstance<TRegistry>()));
-            var self = new Peer(Guid.NewGuid(), configuration.PeerName, configuration.Endpoint);
-            var bus = new Bus(container, self);
 
-            container.Configure(conf => conf.For<IBus>().Use<Bus>());
+            container.Configure(conf => conf.For<IBusConfiguration>().Use(configuration));
+
+            var self = new Peer(Guid.NewGuid(), configuration.PeerName, configuration.Endpoint);
+            container.Configure(conf => conf.For<IPeer>().Use(self));
+
+            var bus = new Bus(container, self);
+            container.Configure(conf => conf.For<IBus>().Use(bus));
+
+            bus.Start();
+
             return bus;
         }
     }

@@ -8,6 +8,11 @@ namespace ZeroMQPlayground.PushPull
 
     public class TransportMessage : ITransportMessage
     {
+        public TransportMessage()
+        {
+            MessageId = Guid.NewGuid();
+        }
+
         public Guid MessageId { get; set; }
         public Type MessageType { get; set; }
         public byte[] Message { get; set; }

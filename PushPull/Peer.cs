@@ -22,6 +22,6 @@ namespace ZeroMQPlayground.PushPull
         public Guid Id { get; set; }
         public string Name { get; set; }
         public string Endpoint { get; set; }
-        public IEnumerable<ISubscription> Subscriptions { get; set; }
+        public List<ISubscription> Subscriptions { get; set; }
     }
 }

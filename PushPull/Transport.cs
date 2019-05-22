@@ -1,6 +1,7 @@
 ﻿using NetMQ;
 using NetMQ.Sockets;
 using Newtonsoft.Json;
+using StructureMap;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -13,17 +14,17 @@ namespace ZeroMQPlayground.PushPull
 {
     public class Transport : ITransport, IDisposable
     {
-        private readonly IBus _bus;
+        private readonly IBusConfiguration _configuration;
         private readonly CancellationTokenSource _cancellationTokenSource;
         private readonly IMessageDispatcher _messageDispatcher;
         private readonly IDirectory _directory;
         private readonly Dictionary<Guid, TaskCompletionSource<ICommandResult>> _commandResults;
 
-        public Transport(IBus bus, IDirectory directory)
+        public Transport(IBusConfiguration configuration, IContainer container, IDirectory directory)
         {
-            _bus = bus;
+            _configuration = configuration;
             _cancellationTokenSource = new CancellationTokenSource();
-            _messageDispatcher = _bus.Container.GetInstance<IMessageDispatcher>();
+            _messageDispatcher = container.GetInstance<IMessageDispatcher>();
             _commandResults = new Dictionary<Guid, TaskCompletionSource<ICommandResult>>();
             _directory = directory;
 
@@ -38,7 +39,7 @@ namespace ZeroMQPlayground.PushPull
 
         public void Pull()
         {
-            using (var receiver = new PullSocket(_bus.Self.Endpoint))
+            using (var receiver = new PullSocket(_configuration.Endpoint))
             {
                 while (true)
                 {

@@ -8,5 +8,6 @@ namespace ZeroMQPlayground.Shared
     public interface IMessageDispatcher
     {
         void Dispatch(TransportMessage message);
+        List<IEvent> HandledEvents { get; }
     }
 }

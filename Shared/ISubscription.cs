@@ -1,16 +1,20 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq.Expressions;
 using System.Text;
 
 namespace ZeroMQPlayground.Shared
 {
     public interface ISubscription
     {
-        Func<IEvent, bool> CanHandle { get; set; }
+        bool CanHandle(IEvent @event);
+        Func<IEvent, bool> ToFunc(Expression exp);
+        Func<IEvent, bool> CanHandleFunc { get; set; }
+        Type EventType { get; set; }
+        String CanHandleExpression { get; set; }
     }
 
-    public interface ISubscription<TEvent> : ISubscription where  TEvent : IEvent
+    public interface ISubscription<TEvent> : ISubscription where TEvent : class, IEvent
     {
-      
     }
 }

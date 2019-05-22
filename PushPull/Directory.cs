@@ -14,7 +14,7 @@ namespace ZeroMQPlayground.PushPull
 
         public Directory(IBus bus)
         {
-            _peers = new Dictionary<Guid, IPeer>();
+            _peers = new Dictionary<Guid, IPeer>() { { bus.Self.Id, bus.Self } };
             _bus = bus;
         }
 
@@ -28,7 +28,7 @@ namespace ZeroMQPlayground.PushPull
             _peers.Add(@event.AcknowledgePeer.Id, @event.AcknowledgePeer);
         }
 
-        public void Handle(PeerRegisterCommand @event)
+        public void Handle(PeerRegisterEvent @event)
         {
             _bus.Emit(new PeerRegisteredEvent()
             {

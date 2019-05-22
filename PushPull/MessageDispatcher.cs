@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -39,7 +40,8 @@ namespace ZeroMQPlayground.PushPull
         private readonly ConcurrentDictionary<Type, List<MessageInvoker>> _invokers;
         private readonly MessageHandlerInvokerCache _cache;
 
-
+        public List<IEvent> HandledEvents { get; set; }
+   
         public MessageDispatcher(IBus bus)
         {
             _messageQueue = new BlockingCollection<TransportMessage>();
@@ -47,6 +49,8 @@ namespace ZeroMQPlayground.PushPull
             _bus = bus;
             _cache = new MessageHandlerInvokerCache(_bus.Container);
             _invokers = new ConcurrentDictionary<Type, List<MessageInvoker>>();
+
+            HandledEvents = new List<IEvent>();
 
             Task.Run(Consume, _cancellationTokenSource.Token);
         }
@@ -82,7 +86,11 @@ namespace ZeroMQPlayground.PushPull
                 foreach(var invoker in invokers)
                 {
                     var handlerInvoker = _cache.GetMethodInfo(message.MessageType, invoker.Handler.GetType());
-                    handlerInvoker.Invoke(invoker.Handler, new object[] { message.Message });
+                    var actualMessage = JsonConvert.DeserializeObject(Encoding.UTF32.GetString(message.Message), message.MessageType);
+
+                    HandledEvents.Add(actualMessage as IEvent);
+
+                    handlerInvoker.Invoke(invoker.Handler, new object[] { actualMessage });
                 }
             }
         }

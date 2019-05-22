@@ -9,6 +9,6 @@ namespace ZeroMQPlayground.Shared
         Guid Id { get; set; }
         String Name { get; set; }
         String Endpoint { get; set; }
-        IEnumerable<ISubscription> Subscriptions { get; set; }
+        List<ISubscription> Subscriptions { get; set; }
     }
 }

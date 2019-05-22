@@ -53,7 +53,7 @@ namespace ZeroMQPlayground.PushPull
         {
             var key = new MessageHandlerInvokerCacheKey(handlerType, messageHandlerType);
 
-            return _methodInfoCache.GetOrAdd(key, handlerType.GetMethod("Handle", new[] { messageHandlerType }));
+            return _methodInfoCache.GetOrAdd(key, messageHandlerType.GetMethod("Handle", new[] { handlerType }));
         }
     }
 }

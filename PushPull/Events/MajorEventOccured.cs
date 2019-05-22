@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.Serialization;
 using System.Text;
 using ZeroMQPlayground.Shared;
 
@@ -12,6 +13,7 @@ namespace ZeroMQPlayground.PushPull
         Fatal
     }
 
+    //[KnownType(typeof(VDB_Sync.Model.Konstant)]
     public class MajorEventOccured : IEvent
     {
         public Severity Severity { get; set; }
