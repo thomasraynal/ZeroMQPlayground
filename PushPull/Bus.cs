@@ -21,7 +21,7 @@ namespace ZeroMQPlayground.PushPull
         public Bus(IContainer container, IPeer self)
         {
             _handlers = new List<IEventHandler>();
-       
+
             container.Configure(conf => conf.For<IPeer>().Use(self));
 
             Container = container;
@@ -66,16 +66,13 @@ namespace ZeroMQPlayground.PushPull
         {
             _transport = Container.GetInstance<ITransport>();
 
+            var directory = Container.GetInstance<IDirectory>();
+
+            _handlers.Add(directory);
+
             Task.Delay(200).Wait();
 
-            Self.Subscriptions.Add(new Subscription<PeerRegisterEvent>());
-            Self.Subscriptions.Add(new Subscription<PeerRegisteredEvent>());
             Self.Subscriptions.Add(new Subscription<PeerUpdatedEvent>());
-
-            //Emit(new PeerRegisterEvent()
-            //{
-            //    Peer = Self
-            //});
 
         }
     }

@@ -38,17 +38,19 @@ namespace ZeroMQPlayground.PushPull
         private readonly CancellationTokenSource _cancellationTokenSource;
         private readonly IBus _bus;
         private readonly ConcurrentDictionary<Type, List<MessageInvoker>> _invokers;
+        private readonly JsonSerializerSettings _settings;
         private readonly MessageHandlerInvokerCache _cache;
 
         public List<IEvent> HandledEvents { get; set; }
    
-        public MessageDispatcher(IBus bus)
+        public MessageDispatcher(IBus bus, JsonSerializerSettings settings)
         {
             _messageQueue = new BlockingCollection<TransportMessage>();
             _cancellationTokenSource = new CancellationTokenSource();
             _bus = bus;
             _cache = new MessageHandlerInvokerCache(_bus.Container);
             _invokers = new ConcurrentDictionary<Type, List<MessageInvoker>>();
+            _settings = settings;
 
             HandledEvents = new List<IEvent>();
 
@@ -86,7 +88,7 @@ namespace ZeroMQPlayground.PushPull
                 foreach(var invoker in invokers)
                 {
                     var handlerInvoker = _cache.GetMethodInfo(message.MessageType, invoker.Handler.GetType());
-                    var actualMessage = JsonConvert.DeserializeObject(Encoding.UTF32.GetString(message.Message), message.MessageType);
+                    var actualMessage = JsonConvert.DeserializeObject(Encoding.UTF32.GetString(message.Message), message.MessageType, _settings);
 
                     HandledEvents.Add(actualMessage as IEvent);
 

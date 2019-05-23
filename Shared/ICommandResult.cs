@@ -4,7 +4,7 @@ using System.Text;
 
 namespace ZeroMQPlayground.Shared
 {
-    public interface ICommandResult
+    public interface ICommandResult : IEvent
     {
     }
 }

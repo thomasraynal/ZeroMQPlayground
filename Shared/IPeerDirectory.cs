@@ -5,8 +5,7 @@ using ZeroMQPlayground.PushPull;
 
 namespace ZeroMQPlayground.Shared
 {
-    public interface IDirectory : IEventHandler<PeerUpdatedEvent>
+    public interface IPeerDirectory : IEventHandler<PeerRegisterCommand>, IEventHandler<PeerUpdatedEvent>
     {
-        IEnumerable<IPeer> GetMatchedPeers(IEvent @event);
     }
 }

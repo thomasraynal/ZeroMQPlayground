@@ -13,7 +13,6 @@ namespace ZeroMQPlayground.PushPull
         Fatal
     }
 
-    //[KnownType(typeof(VDB_Sync.Model.Konstant)]
     public class MajorEventOccured : IEvent
     {
         public Severity Severity { get; set; }

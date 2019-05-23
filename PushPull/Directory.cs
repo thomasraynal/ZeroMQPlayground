@@ -10,12 +10,10 @@ namespace ZeroMQPlayground.PushPull
     public class Directory : IDirectory
     {
         public Dictionary<Guid,IPeer> _peers;
-        private readonly IBus _bus;
 
         public Directory(IBus bus)
         {
             _peers = new Dictionary<Guid, IPeer>() { { bus.Self.Id, bus.Self } };
-            _bus = bus;
         }
 
         public IEnumerable<IPeer> GetMatchedPeers(IEvent @event)
@@ -23,17 +21,9 @@ namespace ZeroMQPlayground.PushPull
             return _peers.Values.Where(peer => peer.Subscriptions.Any(sub => sub.CanHandle(@event)));
         }
 
-        public void Handle(PeerRegisteredEvent @event)
+        public void Handle(PeerUpdatedEvent @event)
         {
-            _peers.Add(@event.AcknowledgePeer.Id, @event.AcknowledgePeer);
-        }
-
-        public void Handle(PeerRegisterEvent @event)
-        {
-            _bus.Emit(new PeerRegisteredEvent()
-            {
-                AcknowledgePeer = _bus.Self
-            });
+            _peers[@event.Peer.Id] = @event.Peer;
         }
     }
 }

@@ -16,11 +16,11 @@ namespace ZeroMQPlayground.PushPull
         {
             var expressionSerializer = new ExpressionSerializer(new Serialization.JsonSerializer());
 
-            Expression<Func<IEvent, bool>> exp = (ev) => ev.GetType() == typeof(TEvent);
+            Expression<Func<TEvent, bool>> exp = (ev) => ev.GetType() == typeof(TEvent);
 
             CanHandleExpression = expressionSerializer.SerializeText(exp);
 
-            CanHandleFunc = exp.Compile();
+            CanHandleFunc = (ev) => ev.GetType() == typeof(TEvent);
 
             EventType = typeof(TEvent);
         }

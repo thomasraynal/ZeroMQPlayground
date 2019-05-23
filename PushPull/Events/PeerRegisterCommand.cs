@@ -5,8 +5,8 @@ using ZeroMQPlayground.Shared;
 
 namespace ZeroMQPlayground.PushPull
 {
-    public class PeerRegisteredEvent : IEvent
+    public class PeerRegisterCommand : ICommand
     {
-        public IPeer AcknowledgePeer { get; set; }
+        public IPeer Peer { get; set; }
     }
 }

@@ -17,7 +17,6 @@ namespace ZeroMQPlayground.PushPull
         public String CanHandle { get; set; }
         public Type EventType { get; set; }
     }
-
     public class SubscriptionConverter : JsonConverter
     {
         public override bool CanConvert(Type objectType)
@@ -25,7 +24,8 @@ namespace ZeroMQPlayground.PushPull
             return objectType.GetInterfaces().Any(@interface => @interface == typeof(ISubscription));
         }
 
-        public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
+
+        public ISubscription Read(JsonReader reader, JsonSerializer serializer)
         {
             var expressionSerializer = new Serialization.ExpressionSerializer(new Serialization.JsonSerializer());
 
@@ -44,9 +44,13 @@ namespace ZeroMQPlayground.PushPull
 
         }
 
-        public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+        public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
         {
-            var expressionSerializer = new Serialization.ExpressionSerializer(new Serialization.JsonSerializer());
+            return Read(reader, serializer);
+        }
+
+        public SubscriptionDto Write(object value, JsonSerializer serializer)
+        {
             var sub = value as ISubscription;
 
             var dto = new SubscriptionDto()
@@ -55,8 +59,14 @@ namespace ZeroMQPlayground.PushPull
                 EventType = sub.EventType
             };
 
-            serializer.Serialize(writer, dto);
+            return dto;
 
+        }
+
+        public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+        {
+            var dto = Write(value, serializer);
+            serializer.Serialize(writer, dto);
         }
     }
 }
