@@ -6,5 +6,6 @@ namespace ZeroMQPlayground.Shared
 {
     public interface ICommandResult : IEvent
     {
+        Guid CommandId { get; set; }
     }
 }

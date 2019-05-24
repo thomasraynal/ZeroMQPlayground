@@ -17,7 +17,9 @@ namespace ZeroMQPlayground.PushPull
             var self = new Peer(Guid.NewGuid(), configuration.PeerName, configuration.Endpoint);
             container.Configure(conf => conf.For<IPeer>().Use(self));
 
-            var bus = new Bus(container, self);
+            var peerDirectoryDescriptor = new Peer(Guid.NewGuid(), "PeerDirectory", configuration.DirectoryEndpoint);
+
+            var bus = new Bus(container, self, peerDirectoryDescriptor);
             container.Configure(conf => conf.For<IBus>().Use(bus));
 
             if (configuration.IsPeerDirectory)

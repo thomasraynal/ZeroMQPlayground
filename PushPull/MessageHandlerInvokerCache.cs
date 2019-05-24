@@ -11,7 +11,6 @@ namespace ZeroMQPlayground.PushPull
 {
     public class MessageHandlerInvokerCache
     {
-
         class MessageHandlerInvokerCacheKey
         {
             public MessageHandlerInvokerCacheKey(Type handlerType, Type messageHandlerType)
@@ -46,7 +45,13 @@ namespace ZeroMQPlayground.PushPull
 
         public IEnumerable<IEventHandler> GetHandlers(Type messageHandlerType)
         {
-            return _handlerCache.GetOrAdd(messageHandlerType, _container.GetAllInstances(messageHandlerType).Cast<IEventHandler>());
+            return _handlerCache.GetOrAdd(messageHandlerType,(type)=>
+            {
+                var bus = _container.GetInstance<IBus>();
+
+                return bus.GetHandlers(messageHandlerType);
+
+            });
         }
 
         public MethodInfo GetMethodInfo(Type handlerType, Type messageHandlerType)

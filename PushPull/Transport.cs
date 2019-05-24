@@ -5,6 +5,7 @@ using StructureMap;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,9 +13,9 @@ using ZeroMQPlayground.Shared;
 
 namespace ZeroMQPlayground.PushPull
 {
-    public class Transport : ITransport, IDisposable
+    public class Transport : ITransport
     {
-        private readonly IBusConfiguration _configuration;
+        private readonly IBus _bus;
         private readonly CancellationTokenSource _cancellationTokenSource;
         private readonly IMessageDispatcher _messageDispatcher;
         private readonly IDirectory _directory;
@@ -22,27 +23,29 @@ namespace ZeroMQPlayground.PushPull
         private readonly Dictionary<Guid, TaskCompletionSource<ICommandResult>> _commandResults;
         private object _locker = new object();
 
-        public Transport(IBusConfiguration configuration, IContainer container, IDirectory directory, JsonSerializerSettings settings)
+        public Transport(IBus bus, IContainer container, IDirectory directory, JsonSerializerSettings settings)
         {
-            _configuration = configuration;
+            _bus = bus;
             _cancellationTokenSource = new CancellationTokenSource();
             _messageDispatcher = container.GetInstance<IMessageDispatcher>();
             _commandResults = new Dictionary<Guid, TaskCompletionSource<ICommandResult>>();
             _directory = directory;
             _jsonSerializerSettings = settings;
 
-            Task.Run(Pull, _cancellationTokenSource.Token);
-
         }
 
-        public void Dispose()
+
+        public async Task Start()
         {
-            _cancellationTokenSource.Cancel();
+            Task.Run(Pull, _cancellationTokenSource.Token);
+
+            await _directory.Start();
+
         }
 
         public void Pull()
         {
-            using (var receiver = new PullSocket(_configuration.Endpoint))
+            using (var receiver = new PullSocket(_bus.Self.Endpoint))
             {
                 while (true)
                 {
@@ -50,11 +53,11 @@ namespace ZeroMQPlayground.PushPull
                     var messageBytes = receiver.ReceiveFrameBytes();
                     var message = JsonConvert.DeserializeObject<TransportMessage>(Encoding.UTF32.GetString(messageBytes), _jsonSerializerSettings);
 
-                    if (message.IsResponse && _commandResults.TryGetValue(message.MessageId, out var task))
+                    if (message.IsResponse && _commandResults.TryGetValue(message.CommandId, out var task))
                     {
                         var commandResult = JsonConvert.DeserializeObject(Encoding.UTF32.GetString(message.Message), message.MessageType, _jsonSerializerSettings);
 
-                        task.SetResult(message as ICommandResult);
+                        task.SetResult(commandResult as ICommandResult);
                     }
 
                     _messageDispatcher.Dispatch(message);
@@ -65,18 +68,27 @@ namespace ZeroMQPlayground.PushPull
 
         public void Send(IEvent @event)
         {
-            var matched = _directory.GetMatchedPeers(@event);
+            var matched = _directory.GetMatchedPeers(@event).ToList();
 
-            foreach(var peer in matched)
+            Send(@event, matched, Guid.Empty);
+        }
+
+        public void Send(ICommandResult @event, IPeer peer)
+        {
+            Send(@event, new[] { peer }.ToList(), @event.CommandId, true);
+        }
+
+        private void Send(IEvent @event, List<IPeer> peers, Guid commandId, bool isResponse = false)
+    {
+            foreach (var peer in peers)
             {
-                lock (_locker)
-                {
-
+            
                     using (var sender = new PushSocket(peer.Endpoint))
                     {
                         var message = new TransportMessage()
                         {
-                            IsResponse = false,
+                            CommandId = commandId,
+                            IsResponse = isResponse,
                             Message = Encoding.UTF32.GetBytes(JsonConvert.SerializeObject(@event, _jsonSerializerSettings)),
                             MessageType = @event.GetType()
                         };
@@ -85,23 +97,27 @@ namespace ZeroMQPlayground.PushPull
 
                         sender.SendFrame(msg);
 
+                        Task.Delay(200).Wait();
 
                     }
-                }
             }
         }
 
-        public Task<ICommandResult> Send(ICommand command)
+        public Task<ICommandResult> Send(ICommand command, IPeer peer)
         {
-            var msgId = Guid.NewGuid();
             var task = new TaskCompletionSource<ICommandResult>();
 
-            _commandResults.Add(msgId, task);
+            _commandResults.Add(command.CommandId, task);
 
-            Send(command);
+            Send(command, new[] { peer }.ToList(), command.CommandId);
 
             return task.Task;
         }
 
+        public void Stop()
+        {
+            _cancellationTokenSource.Cancel();
+            _messageDispatcher.Stop();
+        }
     }
 }

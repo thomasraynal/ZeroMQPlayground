@@ -7,5 +7,6 @@ namespace ZeroMQPlayground.Shared
 {
     public interface IPeerDirectory : IEventHandler<PeerRegisterCommand>, IEventHandler<PeerUpdatedEvent>
     {
+        IEnumerable<IPeer> StateOfTheWorld { get; }
     }
 }

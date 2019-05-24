@@ -11,7 +11,7 @@ using ZeroMQPlayground.Shared;
 
 namespace ZeroMQPlayground.PushPull
 {
-    public class MessageDispatcher : IMessageDispatcher, IDisposable
+    public class MessageDispatcher : IMessageDispatcher
     {
         class MessageHandlerInvokerCacheKey
         {
@@ -60,13 +60,12 @@ namespace ZeroMQPlayground.PushPull
         private IEnumerable<MessageInvoker> GetInvokers(TransportMessage message)
         {
 
-            var type = typeof(IEventHandler<>).MakeGenericType(message.MessageType);
             var isAsync = message.MessageType.GetCustomAttributes(true)
                                   .FirstOrDefault(attribute => attribute.GetType() == typeof(AsynchronousAttribute)) != null;
 
             var mode = isAsync ? DispatchMode.Asynchronous : DispatchMode.Synchronous;
 
-            var handlers = _cache.GetHandlers(type);
+            var handlers = _cache.GetHandlers(message.MessageType);
 
             foreach (var handler in handlers)
             {
@@ -102,7 +101,7 @@ namespace ZeroMQPlayground.PushPull
             _messageQueue.Add(message);
         }
 
-        public void Dispose()
+        public void Stop()
         {
             _cancellationTokenSource.Cancel();
         }

@@ -13,6 +13,7 @@ namespace ZeroMQPlayground.PushPull
             MessageId = Guid.NewGuid();
         }
 
+        public Guid CommandId { get; set; }
         public Guid MessageId { get; set; }
         public Type MessageType { get; set; }
         public byte[] Message { get; set; }

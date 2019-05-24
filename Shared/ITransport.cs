@@ -8,6 +8,9 @@ namespace ZeroMQPlayground.Shared
     public interface ITransport
     {
         void Send(IEvent @event);
-        Task<ICommandResult> Send(ICommand command);
+        void Send(ICommandResult @event, IPeer peer);
+        Task Start();
+        void Stop();
+        Task<ICommandResult> Send(ICommand command, IPeer peer);
     }
 }
