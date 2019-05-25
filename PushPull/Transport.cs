@@ -6,6 +6,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,7 +22,7 @@ namespace ZeroMQPlayground.PushPull
         private readonly IDirectory _directory;
         private readonly JsonSerializerSettings _jsonSerializerSettings;
         private readonly Dictionary<Guid, TaskCompletionSource<ICommandResult>> _commandResults;
-        private object _locker = new object();
+        private ConfiguredTaskAwaitable _worker;
 
         public Transport(IBus bus, IContainer container, IDirectory directory, JsonSerializerSettings settings)
         {
@@ -37,7 +38,7 @@ namespace ZeroMQPlayground.PushPull
 
         public async Task Start()
         {
-            Task.Run(Pull, _cancellationTokenSource.Token);
+            _worker = Task.Run(Pull, _cancellationTokenSource.Token).ConfigureAwait(false);
 
             await _directory.Start();
 
@@ -45,25 +46,28 @@ namespace ZeroMQPlayground.PushPull
 
         public void Pull()
         {
-            using (var receiver = new PullSocket(_bus.Self.Endpoint))
-            {
-                while (true)
+       
+                using (var receiver = new PullSocket(_bus.Self.Endpoint))
                 {
-
-                    var messageBytes = receiver.ReceiveFrameBytes();
-                    var message = JsonConvert.DeserializeObject<TransportMessage>(Encoding.UTF32.GetString(messageBytes), _jsonSerializerSettings);
-
-                    if (message.IsResponse && _commandResults.TryGetValue(message.CommandId, out var task))
+                    while (!_cancellationTokenSource.IsCancellationRequested)
                     {
-                        var commandResult = JsonConvert.DeserializeObject(Encoding.UTF32.GetString(message.Message), message.MessageType, _jsonSerializerSettings);
 
-                        task.SetResult(commandResult as ICommandResult);
+                        var messageBytes = receiver.ReceiveFrameBytes();
+                        var message = JsonConvert.DeserializeObject<TransportMessage>(Encoding.UTF32.GetString(messageBytes), _jsonSerializerSettings);
+
+                        if (message.IsResponse && _commandResults.TryGetValue(message.CommandId, out var task))
+                        {
+                            var commandResult = JsonConvert.DeserializeObject(Encoding.UTF32.GetString(message.Message), message.MessageType, _jsonSerializerSettings);
+
+                            task.SetResult(commandResult as ICommandResult);
+                        }
+
+                        _messageDispatcher.Dispatch(message);
+
                     }
-
-                    _messageDispatcher.Dispatch(message);
-
                 }
-            }
+   
+      
         }
 
         public void Send(IEvent @event)
@@ -79,10 +83,12 @@ namespace ZeroMQPlayground.PushPull
         }
 
         private void Send(IEvent @event, List<IPeer> peers, Guid commandId, bool isResponse = false)
-    {
-            foreach (var peer in peers)
-            {
-            
+        {
+         
+
+                foreach (var peer in peers)
+                {
+
                     using (var sender = new PushSocket(peer.Endpoint))
                     {
                         var message = new TransportMessage()
@@ -100,7 +106,9 @@ namespace ZeroMQPlayground.PushPull
                         Task.Delay(200).Wait();
 
                     }
-            }
+                }
+
+
         }
 
         public Task<ICommandResult> Send(ICommand command, IPeer peer)

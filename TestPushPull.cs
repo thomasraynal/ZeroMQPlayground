@@ -126,6 +126,7 @@ namespace ZeroMQPlayground
             await Task.Delay(500);
 
             Assert.AreEqual(2, dispatcher.HandledEvents.Count);
+
             Assert.IsTrue(dispatcher.HandledEvents.Any(ev=> ev.GetType() == typeof(PeerRegisterCommand)));
             Assert.IsTrue(dispatcher.HandledEvents.Any(ev => ev.GetType() == typeof(PeerRegisterCommandResult)));
 
@@ -136,7 +137,7 @@ namespace ZeroMQPlayground
 
             //2*2 PeerUpdatedEvent (PeerDirectory + Directory)  
             Assert.AreEqual(6, dispatcher.HandledEvents.Count);
-            Assert.AreEqual(4,dispatcher.HandledEvents.Count(ev => ev.GetType() == typeof(PeerUpdatedEvent)));
+            Assert.AreEqual(4, dispatcher.HandledEvents.Count(ev => ev.GetType() == typeof(PeerUpdatedEvent)));
 
             var directory = bus.Container.GetInstance<IDirectory>();
             var peerDirectory = bus.Container.GetInstance<IPeerDirectory>();
@@ -270,10 +271,8 @@ namespace ZeroMQPlayground
             Assert.IsNotNull(_dispatcher2);
 
             //at least 1/3 events should be processed...
-
             Assert.IsTrue(_dispatcher1.HandledEvents.Where(ev => ev.GetType() == typeof(MajorEventOccured)).Count() > peer1EventCount / 3);
             Assert.IsTrue(_dispatcher1.HandledEvents.Where(ev => ev.GetType() == typeof(MinorEventOccured)).Count() > peer1EventCount / 3);
-
             Assert.IsTrue(_dispatcher2.HandledEvents.Where(ev => ev.GetType() == typeof(MajorEventOccured)).Count() > peer2EventCount / 3);
             Assert.IsTrue(_dispatcher2.HandledEvents.Where(ev => ev.GetType() == typeof(MinorEventOccured)).Count() > peer2EventCount / 3);
         }

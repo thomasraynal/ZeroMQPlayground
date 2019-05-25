@@ -98,12 +98,15 @@ namespace ZeroMQPlayground.PushPull
 
         public void Dispatch(TransportMessage message)
         {
+            if (_cancellationTokenSource.IsCancellationRequested) return;
+
             _messageQueue.Add(message);
         }
 
         public void Stop()
         {
             _cancellationTokenSource.Cancel();
+            _messageQueue.CompleteAdding();
         }
     }
 }

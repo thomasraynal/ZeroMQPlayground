@@ -1,4 +1,5 @@
-﻿using StructureMap;
+﻿using NetMQ;
+using StructureMap;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -94,6 +95,12 @@ namespace ZeroMQPlayground.PushPull
         public void Stop()
         {
             _transport.Stop();
+
+            try
+            {
+                NetMQConfig.Cleanup(false);
+            }
+            catch (ObjectDisposedException) { }
         }
     }
 }
