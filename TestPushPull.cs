@@ -10,8 +10,9 @@ using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
 using ZeroMQPlayground.PushPull;
+using ZeroMQPlayground.Shared;
 
-namespace ZeroMQPlayground
+namespace ZeroMQPlayground.Tests.PushPull
 {
 
     public class TestPushPullRegistry : Registry
