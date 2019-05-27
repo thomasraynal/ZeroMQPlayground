@@ -4,7 +4,7 @@ using System.Text;
 using System.Threading.Tasks;
 using ZeroMQPlayground.PushPull;
 
-namespace ZeroMQPlayground.Shared
+namespace ZeroMQPlayground.PushPull
 {
     public interface IDirectory : IEventHandler<PeerUpdatedEvent>, IEventHandler<PeerRegisterCommandResult>
     {

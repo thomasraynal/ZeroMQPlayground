@@ -1,4 +1,4 @@
-﻿namespace ZeroMQPlayground.Shared
+﻿namespace ZeroMQPlayground.PushPull
 {
     public interface IBusConfiguration
     {

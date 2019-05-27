@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
-using ZeroMQPlayground.Shared;
 using Serialization = Serialize.Linq.Serializers;
 
 namespace ZeroMQPlayground.PushPull

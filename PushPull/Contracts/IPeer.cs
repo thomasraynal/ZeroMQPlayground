@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Text;
 using ZeroMQPlayground.PushPull;
 
-namespace ZeroMQPlayground.Shared
+namespace ZeroMQPlayground.PushPull
 {
     public interface IPeer
     {

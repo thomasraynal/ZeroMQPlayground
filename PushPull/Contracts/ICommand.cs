@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace ZeroMQPlayground.Shared
+namespace ZeroMQPlayground.PushPull
 {
-    public interface ICommandResult : IEvent
+    public interface ICommand : IEvent
     {
         Guid CommandId { get; set; }
     }

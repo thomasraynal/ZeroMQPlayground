@@ -10,7 +10,6 @@ using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
 using ZeroMQPlayground.PushPull;
-using ZeroMQPlayground.Shared;
 
 namespace ZeroMQPlayground
 {
@@ -39,35 +38,10 @@ namespace ZeroMQPlayground
     [TestFixture]
     public class TestPushPull
     {
-   
-        private String Serialize(Expression<Func<string, bool>> exp)
-        {
-            var serializer = new ExpressionSerializer(new Serialize.Linq.Serializers.JsonSerializer());
-            return serializer.SerializeText(exp);
-        }
-
-        private Expression DeSerialize(String exp)
-        {
-            var serializer = new ExpressionSerializer(new Serialize.Linq.Serializers.JsonSerializer());
-            return serializer.DeserializeText(exp);
-        }
+  
 
         [Test]
-        public void TestExpression()
-        {
-            Expression<Func<string, bool>> exp2 = (s) => s.Length > 3;
-
-            var serialized = Serialize((s) => s.Length > 3);
-            var exp = DeSerialize(serialized);
-            var func = (exp as Expression<Func<String, bool>>).Compile();
-
-            Assert.True(func("abcdef"));
-            Assert.False(func("ab"));
-
-        }
-
-        [Test]
-        public void TestExpression2()
+        public void TestExpressionSerialization()
         {
             var serializer = new ExpressionSerializer(new Serialize.Linq.Serializers.JsonSerializer());
 
@@ -103,7 +77,7 @@ namespace ZeroMQPlayground
         }
 
         [Test]
-        public async Task TestOnePeer()
+        public async Task TestStartPeer()
         {
 
             var configuration = new BusConfiguration()

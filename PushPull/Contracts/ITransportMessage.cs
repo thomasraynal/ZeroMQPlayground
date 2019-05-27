@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace ZeroMQPlayground.Shared
+namespace ZeroMQPlayground.PushPull
 {
     public interface ITransportMessage
     {

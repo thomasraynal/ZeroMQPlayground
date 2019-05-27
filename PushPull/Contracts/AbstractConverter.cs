@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 //https://stackoverflow.com/questions/5780888/casting-interfaces-for-deserialization-in-json-net
-namespace ZeroMQPlayground.Shared
+namespace ZeroMQPlayground.PushPull
 {
     public class AbstractConverter<TReal, TAbstract> : JsonConverter where TReal : TAbstract
     {

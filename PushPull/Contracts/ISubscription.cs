@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Text;
 
-namespace ZeroMQPlayground.Shared
+namespace ZeroMQPlayground.PushPull
 {
     public interface ISubscription
     {
