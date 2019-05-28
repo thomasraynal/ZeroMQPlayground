@@ -7,14 +7,7 @@ namespace ZeroMQPlayground.PubSub
 {
     public class ProducerDescriptor
     {
-        public static ProducerDescriptor NoAvailableProducer = new ProducerDescriptor()
-        {
-            Id = Guid.Empty,
-            LastActivated = DateTime.MaxValue,
-            Topic = null,
-        };
 
-        public Guid Id { get; set; }
         public String Topic { get; set; }
         public String Endpoint { get; set; }
 

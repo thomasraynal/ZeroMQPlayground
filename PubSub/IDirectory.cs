@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Refit;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
@@ -7,8 +8,11 @@ namespace ZeroMQPlayground.PubSub
 {
     public interface IDirectory
     {
-        Task Register(ProducerRegistrationDto producer);
-        Task<ProducerDescriptor> Next(string topic);
-        Task<IEnumerable<ProducerDescriptor>> GetStateOfTheWorld();
+        [Put("/producers")]
+        Task Register([Body] ProducerRegistrationDto producer);
+        [Get("/producers/next")]
+        Task<ProducerRegistrationDto> Next(string topic);
+        [Get("/producers")]
+        Task<IEnumerable<ProducerRegistrationDto>> GetStateOfTheWorld();
     }
 }

@@ -6,7 +6,12 @@ namespace ZeroMQPlayground.PubSub
 {
     public class ProducerRegistrationDto
     {
-        public Guid Id { get; set; }
+        public static ProducerRegistrationDto NoAvailableProducer = new ProducerRegistrationDto()
+        {
+            Endpoint = null,
+            Topic = null,
+        };
+
         public String Topic { get; set; }
         public String Endpoint { get; set; }
     }

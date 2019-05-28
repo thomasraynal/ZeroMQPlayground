@@ -11,13 +11,14 @@ using ZeroMQPlayground.PubSub.Events;
 
 namespace ZeroMQPlayground.PubSub
 {
-    public abstract class ProducerBase<TEvent> : IProducer
+    public abstract class ProducerBase<TEvent> : IProducer<TEvent>
     {
-        private ProducerConfiguration _producerConfiguration;
+        protected ProducerConfiguration _producerConfiguration;
         private IDirectory _directory;
         private CancellationTokenSource _cancel;
         private JsonSerializerSettings _settings;
         private ConfiguredTaskAwaitable _producer;
+        private PublisherSocket _publisherSocket;
         private Random _rand;
 
         public ProducerBase(ProducerConfiguration producerConfiguration, IDirectory directory, JsonSerializerSettings settings)
@@ -34,24 +35,25 @@ namespace ZeroMQPlayground.PubSub
         {
             _directory.Register(new ProducerRegistrationDto()
             {
-                Endpoint = _producerConfiguration.Enpoint,
-                Topic = nameof(TEvent),
-                Id = _producerConfiguration.Id
+                Endpoint = _producerConfiguration.ClientEnpoint,
+                Topic = typeof(TEvent).ToString()
 
             }).Wait();
 
             _producer = Task.Run(Produce, _cancel.Token).ConfigureAwait(false);
             _rand = new Random();
-          
+
         }
 
         private void Produce()
         {
             var eventSerializer = new EventSerializer();
 
-            using (var pubSocket = new PublisherSocket())
+            using (_publisherSocket = new PublisherSocket())
             {
-                pubSocket.Options.SendHighWatermark = 1000;
+                _publisherSocket.Options.SendHighWatermark = 1000;
+
+                _publisherSocket.Bind(_producerConfiguration.Enpoint);
 
                 while (!_cancel.IsCancellationRequested)
                 {
@@ -68,9 +70,9 @@ namespace ZeroMQPlayground.PubSub
 
                     var msg = Encoding.UTF32.GetBytes(JsonConvert.SerializeObject(message, _settings));
 
-                    pubSocket.SendMoreFrame(topic).SendFrame(msg);
+                    _publisherSocket.SendMoreFrame(topic).SendFrame(msg);
 
-                    Task.Delay(_rand.Next(500, 1500));
+                    Task.Delay(_rand.Next(250, 500)).Wait();
 
                 }
 
@@ -80,6 +82,8 @@ namespace ZeroMQPlayground.PubSub
         public void Stop()
         {
             _cancel.Cancel();
+            _publisherSocket.Close();
+            _publisherSocket.Dispose();
         }
     }
 }

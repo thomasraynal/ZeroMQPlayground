@@ -6,9 +6,10 @@ using System.Threading.Tasks;
 
 namespace ZeroMQPlayground.PubSub
 {
-    public class DirectoryService : Controller, IDirectory
+    [Route("producers")]
+    public class DirectoryService : Controller
     {
-        private IDirectory _directory;
+        private readonly IDirectory _directory;
 
         public DirectoryService(IDirectory directory)
         {
@@ -16,21 +17,29 @@ namespace ZeroMQPlayground.PubSub
         }
 
         [HttpGet]
-        public async Task<IEnumerable<ProducerDescriptor>> GetStateOfTheWorld()
+        public async Task<IEnumerable<ProducerRegistrationDto>> GetStateOfTheWorld()
         {
             return await _directory.GetStateOfTheWorld();
         }
 
-        [HttpGet]
-        public async Task<ProducerDescriptor> Next(string topic)
+        [HttpGet("next")]
+        public async Task<IActionResult> Next([FromQuery] string topic)
         {
-            return await _directory.Next(topic);
+            var next = await _directory.Next(topic);
+
+            if (null == next) return NotFound();
+
+            return Ok(next);
         }
 
         [HttpPut]
-        public async Task Register([FromBody] ProducerRegistrationDto producer)
+        public async Task<IActionResult> Register([FromBody] ProducerRegistrationDto producer)
         {
-             await _directory.Register(producer);
+
+            await _directory.Register(producer);
+
+            return StatusCode(201);
+
         }
     }
 }
