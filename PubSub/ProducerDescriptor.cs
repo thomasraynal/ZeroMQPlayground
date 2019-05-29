@@ -15,5 +15,6 @@ namespace ZeroMQPlayground.PubSub
 
         [JsonIgnore]
         public DateTime LastActivated { get; set; }
+        public string HeartbeatEndpoint { get; set; }
     }
 }

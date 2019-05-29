@@ -14,5 +14,6 @@ namespace ZeroMQPlayground.PubSub
 
         public String Topic { get; set; }
         public String Endpoint { get; set; }
+        public string HeartBeatEndpoint { get; set ; }
     }
 }

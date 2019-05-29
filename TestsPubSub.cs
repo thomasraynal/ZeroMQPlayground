@@ -96,8 +96,8 @@ namespace ZeroMQPlayground.Tests.PubSub
             var configuration = new ProducerConfiguration()
             {
                 IsTest = true,
-                Enpoint = "tcp://*:8080",
-                ClientEnpoint= "tcp://localhost:8080",
+                Endpoint = "tcp://*:8080",
+                EndpointForClient= "tcp://localhost:8080",
                 Id = Guid.NewGuid()
             };
 
@@ -158,17 +158,15 @@ namespace ZeroMQPlayground.Tests.PubSub
         [Test]
         public async Task TestE2E()
         {
-
-        }
-
-        [Test]
-        public async Task TestProducerConsumer()
-        {
             var cancel = new CancellationTokenSource();
 
             var directoryEndpoint = "http://localhost:8080";
+
             var producer1Endpoint = "tcp://*:8181";
-          
+            var producer1HeartbeatEndpoint = "tcp://localhost:8282";
+
+            var consumerEndpoint = "tcp://localhost:8383";
+
             IWebHost host = null;
 
             new Task(() =>
@@ -193,8 +191,87 @@ namespace ZeroMQPlayground.Tests.PubSub
             var configurationProducer1 = new ProducerConfiguration()
             {
                 IsTest = true,
-                Enpoint = producer1Endpoint,
-                ClientEnpoint = producer1Endpoint.Replace("*", "localhost"),
+                Endpoint = producer1Endpoint,
+                HeartbeatEnpoint = producer1HeartbeatEndpoint,
+                EndpointForClient = producer1Endpoint.Replace("*", "localhost"),
+                Id = Guid.NewGuid()
+            };
+
+            var producer1 = new AccidentProducer(configurationProducer1, directory, new JsonSerializerSettings());
+            producer1.Start();
+
+            await Task.Delay(1000);
+
+            var configurationConsumer1 = new ConsumerConfiguration<AccidentEvent>()
+            {
+                Topic = "Paris.Business",
+                Id = Guid.NewGuid(),
+                Endpoint = consumerEndpoint
+            };
+
+            var consumedEvents = new List<AccidentEvent>();
+
+            var consumer = new Consumer<AccidentEvent>(configurationConsumer1, directory, new JsonSerializerSettings());
+
+            consumer.GetSubscription()
+                    .Subscribe(ev =>
+                    {
+                        consumedEvents.Add(ev);
+                    });
+
+
+            consumer.Start();
+
+            await Task.Delay(2000);
+
+            producer1.Stop();
+
+
+            await Task.Delay(2000);
+
+            //all the sockets are executed in the same process, thus NetMQConfig.Cleanup() kills everything, hence the hearbeat process never complete adequatly
+            //not calling NetMQConfig.Cleanup() let the disposed socket in a blocking state and the hearbeat push socket does not fail while trying to reach the "zombie" puller, hence failing to hearbeat correctly
+            //solution ? create an hearbeat response on the consumer side to handle socket failure by absence of response...
+            throw new NotImplementedException();
+
+        }
+
+        [Test]
+        public async Task TestProducerConsumer()
+        {
+            var cancel = new CancellationTokenSource();
+
+            var directoryEndpoint = "http://localhost:8080";
+            var producer1Endpoint = "tcp://*:8181";
+            var producer1HeartbeatEndpoint = "tcp://localhost:8282";
+
+            IWebHost host = null;
+
+            new Task(() =>
+            {
+
+                host = new WebHostBuilder()
+                        .UseKestrel()
+                        .UseUrls(directoryEndpoint)
+                        .UseStartup<DirectoryStartup>()
+                        .Build();
+
+                host.Run();
+
+
+            }, cancel.Token).Start();
+
+
+            await Task.Delay(2000);
+
+            var directory = RestService.For<IDirectory>(directoryEndpoint);
+
+            var configurationProducer1 = new ProducerConfiguration()
+            {
+                IsTest = true,
+                Endpoint = producer1Endpoint,
+                HeartbeatEnpoint = producer1HeartbeatEndpoint,
+                EndpointForClient = producer1Endpoint.Replace("*", "localhost"),
                 Id = Guid.NewGuid()
             };
 
@@ -221,7 +298,6 @@ namespace ZeroMQPlayground.Tests.PubSub
 
 
             consumer.Start();
-
 
             await Task.Delay(1000);
 

@@ -8,7 +8,9 @@ namespace ZeroMQPlayground.PubSub
     {
         public bool IsTest { get; set; }
         public Guid Id { get; set; }
-        public String Enpoint { get; set; }
-        public String ClientEnpoint { get; set; }
+        public String Endpoint { get; set; }
+        public String EndpointForClient { get; set; }
+
+        public String HeartbeatEnpoint { get; set; }
     }
 }

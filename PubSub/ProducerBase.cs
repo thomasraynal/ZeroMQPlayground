@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
@@ -18,8 +19,10 @@ namespace ZeroMQPlayground.PubSub
         private CancellationTokenSource _cancel;
         private JsonSerializerSettings _settings;
         private ConfiguredTaskAwaitable _producer;
+        private ConfiguredTaskAwaitable _heartbeat;
         private PublisherSocket _publisherSocket;
         private Random _rand;
+        private PullSocket _heartbeatSocket;
 
         public ProducerBase(ProducerConfiguration producerConfiguration, IDirectory directory, JsonSerializerSettings settings)
         {
@@ -35,46 +38,72 @@ namespace ZeroMQPlayground.PubSub
         {
             _directory.Register(new ProducerRegistrationDto()
             {
-                Endpoint = _producerConfiguration.ClientEnpoint,
-                Topic = typeof(TEvent).ToString()
+                Endpoint = _producerConfiguration.EndpointForClient,
+                Topic = typeof(TEvent).ToString(),
+                HeartBeatEndpoint = _producerConfiguration.HeartbeatEnpoint
 
             }).Wait();
 
+
+            _heartbeat = Task.Run(HandleHeartbeat, _cancel.Token).ConfigureAwait(false);
             _producer = Task.Run(Produce, _cancel.Token).ConfigureAwait(false);
+
             _rand = new Random();
 
+        }
+
+        private void HandleHeartbeat()
+        {
+            _heartbeatSocket = new PullSocket(_producerConfiguration.HeartbeatEnpoint);
+            
+                while (!_cancel.IsCancellationRequested)
+            {
+                var messageBytes = _heartbeatSocket.ReceiveFrameBytes();
+                var heartbeat = JsonConvert.DeserializeObject<HeartbeatQuery>(Encoding.UTF32.GetString(messageBytes), _settings);
+
+                using (var sender = new PushSocket(heartbeat.SenderEndpoint))
+                {
+                    var heartbeatResponse = new HeartbeatResponse()
+                    {
+                        ProducerId = _producerConfiguration.Id
+                    };
+
+                    var msg = Encoding.UTF32.GetBytes(JsonConvert.SerializeObject(heartbeatResponse, _settings));
+
+                    sender.SendFrame(msg);
+                }
+
+            }
         }
 
         private void Produce()
         {
             var eventSerializer = new EventSerializer();
 
-            using (_publisherSocket = new PublisherSocket())
+            _publisherSocket = new PublisherSocket();
+
+            _publisherSocket.Options.SendHighWatermark = 1000;
+
+            _publisherSocket.Bind(_producerConfiguration.Endpoint);
+
+            while (!_cancel.IsCancellationRequested)
             {
-                _publisherSocket.Options.SendHighWatermark = 1000;
+                var next = Next();
 
-                _publisherSocket.Bind(_producerConfiguration.Enpoint);
+                var topic = eventSerializer.Serialize(next);
 
-                while (!_cancel.IsCancellationRequested)
+                var message = new TransportMessage()
                 {
-                    var next = Next();
+                    MessageType = next.GetType(),
+                    MessageId = Guid.NewGuid(),
+                    Message = Encoding.UTF32.GetBytes(JsonConvert.SerializeObject(next, _settings)),
+                };
 
-                    var topic = eventSerializer.Serialize(next);
+                var msg = Encoding.UTF32.GetBytes(JsonConvert.SerializeObject(message, _settings));
 
-                    var message = new TransportMessage()
-                    {
-                        MessageType = next.GetType(),
-                        MessageId = Guid.NewGuid(),
-                        Message = Encoding.UTF32.GetBytes(JsonConvert.SerializeObject(next, _settings)),
-                    };
+                _publisherSocket.SendMoreFrame(topic).SendFrame(msg);
 
-                    var msg = Encoding.UTF32.GetBytes(JsonConvert.SerializeObject(message, _settings));
-
-                    _publisherSocket.SendMoreFrame(topic).SendFrame(msg);
-
-                    Task.Delay(_rand.Next(250, 500)).Wait();
-
-                }
+                Task.Delay(_rand.Next(250, 500)).Wait();
 
             }
         }
@@ -82,8 +111,21 @@ namespace ZeroMQPlayground.PubSub
         public void Stop()
         {
             _cancel.Cancel();
+
+            _heartbeatSocket.Close();
+            _heartbeatSocket.Dispose();
+
             _publisherSocket.Close();
             _publisherSocket.Dispose();
+
+
+
+            //try
+            //{
+            //   NetMQConfig.Cleanup(false);
+            //}
+            //catch (ObjectDisposedException) { }
+
         }
     }
 }

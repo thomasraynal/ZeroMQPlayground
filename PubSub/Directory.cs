@@ -21,7 +21,8 @@ namespace ZeroMQPlayground.PubSub
             return Task.FromResult(_stateOfTheWorld.Values.Select(producer => new ProducerRegistrationDto()
             {
                 Endpoint = producer.Endpoint,
-                Topic = producer.Topic
+                Topic = producer.Topic,
+                HeartBeatEndpoint = producer.HeartbeatEndpoint
             }));
         }
 
@@ -39,7 +40,8 @@ namespace ZeroMQPlayground.PubSub
             return Task.FromResult(new ProducerRegistrationDto()
             {
                 Endpoint = target.Endpoint,
-                Topic = target.Topic
+                Topic = target.Topic,
+                HeartBeatEndpoint = target.HeartbeatEndpoint
             });
 
         }
@@ -55,7 +57,8 @@ namespace ZeroMQPlayground.PubSub
                     Endpoint = producer.Endpoint,
                     LastActivated = DateTime.MinValue,
                     State = ProducerState.Alive,
-                    Topic = producer.Topic
+                    Topic = producer.Topic,
+                    HeartbeatEndpoint = producer.HeartBeatEndpoint
                 };
 
                 _stateOfTheWorld.AddOrUpdate(producer.Endpoint, producerDescriptor, (key, oldValue) =>

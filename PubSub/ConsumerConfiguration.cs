@@ -7,5 +7,7 @@ namespace ZeroMQPlayground.PubSub
         public Guid Id { get; set; }
         public String Service => typeof(TEvent).ToString();
         public String Topic { get; set; }
+
+        public String Endpoint { get; set; }
     }
 }
