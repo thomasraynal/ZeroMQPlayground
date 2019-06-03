@@ -22,7 +22,7 @@ namespace ZeroMQPlayground.PubSub
         private ConfiguredTaskAwaitable _heartbeat;
         private PublisherSocket _publisherSocket;
         private Random _rand;
-        private PullSocket _heartbeatSocket;
+        private RouterSocket _heartbeatSocket;
 
         public ProducerBase(ProducerConfiguration producerConfiguration, IDirectory directory, JsonSerializerSettings settings)
         {
@@ -36,16 +36,20 @@ namespace ZeroMQPlayground.PubSub
 
         public void Start()
         {
+
+            _heartbeat = Task.Run(HandleHeartbeat, _cancel.Token).ConfigureAwait(false);
+
+            Task.Delay(500).Wait();
+
             _directory.Register(new ProducerRegistrationDto()
             {
                 Endpoint = _producerConfiguration.EndpointForClient,
                 Topic = typeof(TEvent).ToString(),
-                HeartBeatEndpoint = _producerConfiguration.HeartbeatEnpoint
+                HeartbeatEndpoint = _producerConfiguration.HeartbeatEnpoint
 
             }).Wait();
 
 
-            _heartbeat = Task.Run(HandleHeartbeat, _cancel.Token).ConfigureAwait(false);
             _producer = Task.Run(Produce, _cancel.Token).ConfigureAwait(false);
 
             _rand = new Random();
@@ -54,23 +58,28 @@ namespace ZeroMQPlayground.PubSub
 
         private void HandleHeartbeat()
         {
-            _heartbeatSocket = new PullSocket(_producerConfiguration.HeartbeatEnpoint);
-            
-                while (!_cancel.IsCancellationRequested)
+            _heartbeatSocket = new RouterSocket(_producerConfiguration.HeartbeatEnpoint);
+
+            while (!_cancel.IsCancellationRequested)
             {
-                var messageBytes = _heartbeatSocket.ReceiveFrameBytes();
+                var message = _heartbeatSocket.ReceiveMultipartMessage();
+                var messageBytes = message[2].Buffer;
+
                 var heartbeat = JsonConvert.DeserializeObject<HeartbeatQuery>(Encoding.UTF32.GetString(messageBytes), _settings);
 
-                using (var sender = new PushSocket(heartbeat.SenderEndpoint))
+                using (var sender = new RequestSocket(heartbeat.HeartbeatEndpoint))
                 {
                     var heartbeatResponse = new HeartbeatResponse()
                     {
-                        ProducerId = _producerConfiguration.Id
+                        ProducerId = _producerConfiguration.Id,
+                        Now = DateTime.Now
                     };
 
                     var msg = Encoding.UTF32.GetBytes(JsonConvert.SerializeObject(heartbeatResponse, _settings));
 
                     sender.SendFrame(msg);
+
+                    Task.Delay(200).Wait();
                 }
 
             }
@@ -117,14 +126,6 @@ namespace ZeroMQPlayground.PubSub
 
             _publisherSocket.Close();
             _publisherSocket.Dispose();
-
-
-
-            //try
-            //{
-            //   NetMQConfig.Cleanup(false);
-            //}
-            //catch (ObjectDisposedException) { }
 
         }
     }

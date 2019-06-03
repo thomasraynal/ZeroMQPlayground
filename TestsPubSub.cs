@@ -23,6 +23,14 @@ namespace ZeroMQPlayground.Tests.PubSub
     [TestFixture]
     public class TestsPubSub
     {
+
+
+        [TearDown]
+        public void TearDown()
+        {
+            NetMQConfig.Cleanup(false);
+        }
+
         [Test]
         public async Task TestDirectory()
         {
@@ -163,9 +171,11 @@ namespace ZeroMQPlayground.Tests.PubSub
             var directoryEndpoint = "http://localhost:8080";
 
             var producer1Endpoint = "tcp://*:8181";
+            var realProducer1Endpoint = producer1Endpoint.Replace("*", "localhost");
             var producer1HeartbeatEndpoint = "tcp://localhost:8282";
 
             var consumerEndpoint = "tcp://localhost:8383";
+            var consumerHeartbeatEndpoint = "tcp://localhost:8484";
 
             IWebHost host = null;
 
@@ -193,7 +203,7 @@ namespace ZeroMQPlayground.Tests.PubSub
                 IsTest = true,
                 Endpoint = producer1Endpoint,
                 HeartbeatEnpoint = producer1HeartbeatEndpoint,
-                EndpointForClient = producer1Endpoint.Replace("*", "localhost"),
+                EndpointForClient = realProducer1Endpoint,
                 Id = Guid.NewGuid()
             };
 
@@ -206,7 +216,8 @@ namespace ZeroMQPlayground.Tests.PubSub
             {
                 Topic = "Paris.Business",
                 Id = Guid.NewGuid(),
-                Endpoint = consumerEndpoint
+                Endpoint = consumerEndpoint,
+                HeartbeatEndpoint = consumerHeartbeatEndpoint
             };
 
             var consumedEvents = new List<AccidentEvent>();
@@ -224,15 +235,36 @@ namespace ZeroMQPlayground.Tests.PubSub
 
             await Task.Delay(2000);
 
+            var stateOfTheWorld = await directory.GetStateOfTheWorld();
+
+
+            //at least an event should have match the filter
+            Assert.Greater(consumedEvents.Count, 0);
+            Assert.AreEqual(1, stateOfTheWorld.Count());
+
+            var producer = stateOfTheWorld.First();
+            Assert.AreEqual(producer.Endpoint, realProducer1Endpoint);
+            Assert.AreEqual(ProducerState.Alive, producer.State);
+
             producer1.Stop();
 
+            var eventCount = consumedEvents.Count;
 
             await Task.Delay(2000);
 
-            //all the sockets are executed in the same process, thus NetMQConfig.Cleanup() kills everything, hence the hearbeat process never complete adequatly
-            //not calling NetMQConfig.Cleanup() let the disposed socket in a blocking state and the hearbeat push socket does not fail while trying to reach the "zombie" puller, hence failing to hearbeat correctly
-            //solution ? create an hearbeat response on the consumer side to handle socket failure by absence of response...
-            throw new NotImplementedException();
+            stateOfTheWorld = await directory.GetStateOfTheWorld();
+            producer = stateOfTheWorld.First();
+
+            Assert.AreEqual(ProducerState.NotResponding, producer.State);
+
+            Assert.AreEqual(eventCount, consumedEvents.Count);
+
+            cancel.Cancel();
+
+            await host.StopAsync();
+
+            producer1.Stop();
+            consumer.Stop();
 
         }
 
@@ -309,9 +341,6 @@ namespace ZeroMQPlayground.Tests.PubSub
             consumer.Stop();
 
             Assert.IsTrue(consumedEvents.Count > 0);
-
-
-
 
         }
 

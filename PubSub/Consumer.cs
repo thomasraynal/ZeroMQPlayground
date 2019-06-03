@@ -3,11 +3,10 @@ using NetMQ.Sockets;
 using Newtonsoft.Json;
 using Refit;
 using System;
-using System.Collections.Generic;
-using System.Net.Sockets;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,6 +24,9 @@ namespace ZeroMQPlayground.PubSub
         private ConfiguredTaskAwaitable _consumer;
         private ProducerRegistrationDto _currentProducer;
         private CancellationTokenSource _currentConsumerTaskCancellation;
+        private HeartbeatResponse _lastHearbeat;
+        private RouterSocket _heartbeatSocket;
+        public const int HeartbeatFailureTolerance = 2;
         public const int HeartbeatDelay = 1000;
 
         public Consumer(ConsumerConfiguration<TEvent> consumerConfiguration, IDirectory directory, JsonSerializerSettings settings)
@@ -36,59 +38,21 @@ namespace ZeroMQPlayground.PubSub
             _subject = new Subject<TEvent>();
         }
 
-        private bool HandleHeartbeat()
-        {
-            PushSocket sender = null;
-            var hearBeatResult = true;
-
-            try
-            {
-
-                sender = new PushSocket();
-                sender.Connect(_currentProducer.HeartBeatEndpoint);
-
-                while (!_cancel.IsCancellationRequested)
-                {
-
-                    var heartbeat = new HeartbeatQuery()
-                    {
-                        SenderEndpoint = _consumerConfiguration.Endpoint
-                    };
-
-                    var msg = Encoding.UTF32.GetBytes(JsonConvert.SerializeObject(heartbeat, _settings));
-
-                    if (!sender.TrySendFrame(msg))
-                    {
-                        throw new SocketException();
-                    }
-
-                    Task.Delay(HeartbeatDelay).Wait();
-
-                }
-
-            }
-            catch (Exception ex)
-            {
-                hearBeatResult = false;
-            }
-            finally
-            {
-                sender.Close();
-                sender.Dispose();
-            }
-
-            return hearBeatResult;
-        }
 
         private bool GetNextConsumer()
         {
             try
             {
+                if (_cancel.IsCancellationRequested) return false;
+
                 _currentProducer = _directory.Next(typeof(TEvent).ToString()).Result;
             }
-            catch (ApiException)
+            catch (Exception ex)
             {
-                return false;
+                //no producer found
+                if (ex.InnerException.GetType() == typeof(ApiException)) return false;
+
+                ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
             }
 
             return true;
@@ -96,7 +60,7 @@ namespace ZeroMQPlayground.PubSub
 
         private void HandleNextConsumer()
         {
-     
+
             using (_consumerSocket = new SubscriberSocket())
             {
                 _consumerSocket.Options.ReceiveHighWatermark = 1000;
@@ -121,7 +85,6 @@ namespace ZeroMQPlayground.PubSub
             }
         }
 
-
         public IObservable<TEvent> GetSubscription()
         {
             return _subject.AsObservable();
@@ -139,43 +102,87 @@ namespace ZeroMQPlayground.PubSub
             _consumerSocket.Dispose();
         }
 
-        public void Consume()
+        public bool HandleHeartbeat()
         {
-            try
-            {
-                while (!_cancel.IsCancellationRequested)
-                {
 
-                    while (!GetNextConsumer())
+            var failures = 0;
+
+            _heartbeatSocket = new RouterSocket(_consumerConfiguration.HeartbeatEndpoint);
+
+            while (!_cancel.IsCancellationRequested || failures > HeartbeatFailureTolerance)
+            {
+
+                using (var heartbeatQuery = new RequestSocket(_currentProducer.HeartbeatEndpoint))
+                {
+                    var heartbeat = new HeartbeatQuery()
                     {
-                        Task.Delay(1000).Wait();
+                        HeartbeatEndpoint = _consumerConfiguration.HeartbeatEndpoint
+                    };
+
+                    var msg = Encoding.UTF32.GetBytes(JsonConvert.SerializeObject(heartbeat, _settings));
+
+                    heartbeatQuery.SendFrame(msg);
+
+                    Task.Delay(HeartbeatDelay).Wait();
+
+                    var heartbeatMessage = new NetMQMessage();
+
+                    if (_heartbeatSocket.TryReceiveMultipartMessage(ref heartbeatMessage))
+                    {
+                        _lastHearbeat = JsonConvert.DeserializeObject<HeartbeatResponse>(Encoding.UTF32.GetString(heartbeatMessage[2].Buffer), _settings);
+                        failures = 0;
+                    }
+                    else
+                    {
+                        failures++;
                     }
 
-                    _currentConsumerTaskCancellation = new CancellationTokenSource();
-                    var currentConsumerTask = new Task(HandleNextConsumer, _currentConsumerTaskCancellation.Token);
-
-                    currentConsumerTask.Start();
-
-                    var heartbeatResult = HandleHeartbeat();
-
-                    if (!heartbeatResult)
+                    if (failures > HeartbeatFailureTolerance)
                     {
-                        RaiseHeartbeatFailed();
+                        break;
                     }
 
                 }
+
             }
-            catch (Exception ex)
+
+            return failures < HeartbeatFailureTolerance;
+
+        }
+
+        public void Consume()
+        {
+            while (!_cancel.IsCancellationRequested)
             {
 
-            }
+                while (!GetNextConsumer())
+                {
+                    Task.Delay(1000).Wait();
+                }
 
+                _currentConsumerTaskCancellation = new CancellationTokenSource();
+                var currentConsumerTask = new Task(HandleNextConsumer, _currentConsumerTaskCancellation.Token);
+
+                currentConsumerTask.Start();
+
+                var heartbeatResult = HandleHeartbeat();
+
+                if (!heartbeatResult)
+                {
+                    RaiseHeartbeatFailed();
+                }
+
+            }
         }
 
         public void Stop()
         {
             _subject.OnCompleted();
             _cancel.Cancel();
+
+            _heartbeatSocket.Close();
+            _heartbeatSocket.Dispose();
+
             _consumerSocket.Close();
             _consumerSocket.Dispose();
         }

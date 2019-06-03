@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using NetMQ;
 using Newtonsoft.Json;
 using NUnit.Framework;
 using Serialize.Linq.Serializers;
@@ -39,7 +40,14 @@ namespace ZeroMQPlayground.Tests.PushPull
     [TestFixture]
     public class TestPushPull
     {
-  
+
+
+        [TearDown]
+        public void TearDown()
+        {
+            NetMQConfig.Cleanup(false);
+        }
+
 
         [Test]
         public void TestExpressionSerialization()
