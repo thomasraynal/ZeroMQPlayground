@@ -177,6 +177,12 @@ namespace ZeroMQPlayground.Tests.PubSub
             var consumerEndpoint = "tcp://localhost:8383";
             var consumerHeartbeatEndpoint = "tcp://localhost:8484";
 
+            var producer2Endpoint = "tcp://*:8585";
+            var realProducer2Endpoint = producer2Endpoint.Replace("*", "localhost");
+            var producer2HeartbeatEndpoint = "tcp://localhost:8686";
+
+
+            //create directory
             IWebHost host = null;
 
             new Task(() =>
@@ -198,6 +204,7 @@ namespace ZeroMQPlayground.Tests.PubSub
 
             var directory = RestService.For<IDirectory>(directoryEndpoint);
 
+            //create producers
             var configurationProducer1 = new ProducerConfiguration()
             {
                 IsTest = true,
@@ -206,8 +213,20 @@ namespace ZeroMQPlayground.Tests.PubSub
                 EndpointForClient = realProducer1Endpoint,
                 Id = Guid.NewGuid()
             };
+            var configurationProducer2 = new ProducerConfiguration()
+            {
+                IsTest = true,
+                Endpoint = producer2Endpoint,
+                HeartbeatEnpoint = producer2HeartbeatEndpoint,
+                EndpointForClient = realProducer2Endpoint,
+                Id = Guid.NewGuid()
+            };
+
 
             var producer1 = new AccidentProducer(configurationProducer1, directory, new JsonSerializerSettings());
+            var producer2 = new AccidentProducer(configurationProducer2, directory, new JsonSerializerSettings());
+
+            //start only one producer
             producer1.Start();
 
             await Task.Delay(1000);
@@ -230,40 +249,54 @@ namespace ZeroMQPlayground.Tests.PubSub
                         consumedEvents.Add(ev);
                     });
 
-
+            //start consumer
             consumer.Start();
 
             await Task.Delay(2000);
 
+            //the consumer should have fetch and subscribe to a producer
             var stateOfTheWorld = await directory.GetStateOfTheWorld();
+            var currentEventCount = consumedEvents.Count;
 
-
-            //at least an event should have match the filter
-            Assert.Greater(consumedEvents.Count, 0);
-            Assert.AreEqual(1, stateOfTheWorld.Count());
-
+            //the producer shouold have register to the registry
             var producer = stateOfTheWorld.First();
             Assert.AreEqual(producer.Endpoint, realProducer1Endpoint);
             Assert.AreEqual(ProducerState.Alive, producer.State);
 
-            producer1.Stop();
+            //at least an event should have match the filter
+            Assert.Greater(currentEventCount, 0);
+            Assert.AreEqual(1, stateOfTheWorld.Count());
 
+            //memorize current event count
             var eventCount = consumedEvents.Count;
+
+            //kill the producer
+            producer1.Stop();
 
             await Task.Delay(2000);
 
+            //the directory should have heartbeat the consumer, the consumer should not have consume any more event 
             stateOfTheWorld = await directory.GetStateOfTheWorld();
             producer = stateOfTheWorld.First();
 
             Assert.AreEqual(ProducerState.NotResponding, producer.State);
-
             Assert.AreEqual(eventCount, consumedEvents.Count);
+
+            //start the second producer
+            producer2.Start();
+
+            await Task.Delay(2000);
+
+            //the directory shoud have register the new producer, the consumer should have subscribe to the new consumer
+            stateOfTheWorld = await directory.GetStateOfTheWorld();
+
+            Assert.AreEqual(2, stateOfTheWorld.Count());
+            Assert.Greater(consumedEvents.Count, currentEventCount);
 
             cancel.Cancel();
 
+            producer2.Stop();
             await host.StopAsync();
-
-            producer1.Stop();
             consumer.Stop();
 
         }

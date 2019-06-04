@@ -26,6 +26,7 @@ namespace ZeroMQPlayground.PubSub
         private CancellationTokenSource _currentConsumerTaskCancellation;
         private HeartbeatResponse _lastHearbeat;
         private RouterSocket _heartbeatSocket;
+
         public const int HeartbeatFailureTolerance = 2;
         public const int HeartbeatDelay = 1000;
 
@@ -39,7 +40,7 @@ namespace ZeroMQPlayground.PubSub
         }
 
 
-        private bool GetNextConsumer()
+        private bool TryGetNextConsumer()
         {
             try
             {
@@ -98,6 +99,8 @@ namespace ZeroMQPlayground.PubSub
         private void RaiseHeartbeatFailed()
         {
             _currentConsumerTaskCancellation.Cancel();
+            _heartbeatSocket.Close();
+            _heartbeatSocket.Dispose();
             _consumerSocket.Close();
             _consumerSocket.Dispose();
         }
@@ -155,12 +158,13 @@ namespace ZeroMQPlayground.PubSub
             while (!_cancel.IsCancellationRequested)
             {
 
-                while (!GetNextConsumer())
+                while (!TryGetNextConsumer())
                 {
                     Task.Delay(1000).Wait();
                 }
 
                 _currentConsumerTaskCancellation = new CancellationTokenSource();
+
                 var currentConsumerTask = new Task(HandleNextConsumer, _currentConsumerTaskCancellation.Token);
 
                 currentConsumerTask.Start();
@@ -178,6 +182,7 @@ namespace ZeroMQPlayground.PubSub
         public void Stop()
         {
             _subject.OnCompleted();
+            _currentConsumerTaskCancellation.Cancel();
             _cancel.Cancel();
 
             _heartbeatSocket.Close();

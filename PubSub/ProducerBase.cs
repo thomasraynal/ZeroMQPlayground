@@ -30,6 +30,7 @@ namespace ZeroMQPlayground.PubSub
             _directory = directory;
             _cancel = new CancellationTokenSource();
             _settings = settings;
+            _rand = new Random();
         }
 
         public abstract TEvent Next();
@@ -51,8 +52,6 @@ namespace ZeroMQPlayground.PubSub
 
 
             _producer = Task.Run(Produce, _cancel.Token).ConfigureAwait(false);
-
-            _rand = new Random();
 
         }
 
