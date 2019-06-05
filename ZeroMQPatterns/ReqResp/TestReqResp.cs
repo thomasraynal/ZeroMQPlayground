@@ -35,6 +35,13 @@ namespace ZeroMQPlayground.ReqResp
             }
         }
 
+        [TearDown]
+        public void TearDown()
+        {
+            NetMQConfig.Cleanup(false);
+        }
+
+
         [Test]
         public async Task TestE2E()
         {
