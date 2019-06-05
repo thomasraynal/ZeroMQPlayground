@@ -49,12 +49,6 @@ namespace ZeroMQPlayground.ZeroMQPatterns.DealerRouter
                 }
 
             }
-
-            _router.Close();
-            _router.Dispose();
-
-            _dealer.Close();
-            _dealer.Dispose();
         }
     }
 }

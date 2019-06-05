@@ -45,9 +45,6 @@ namespace ZeroMQPlayground.ZeroMQPatterns.DealerRouter
                     Received.Add(message);
                 }
             }
-
-            _puller.Close();
-            _puller.Dispose();
         }
     }
 }

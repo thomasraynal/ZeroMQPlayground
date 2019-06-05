@@ -55,8 +55,6 @@ namespace ZeroMQPlayground.ZeroMQPatterns.DealerRouter
                 }
             }
 
-            _producer.Close();
-            _producer.Dispose();
         }
 
     }

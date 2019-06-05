@@ -50,9 +50,6 @@ namespace ZeroMQPlayground.ReqResp
                     _heartbeat.SendFrame(responseBytes);
                 }
             }
-
-            _heartbeat.Close();
-            _heartbeat.Dispose();
         }
     }
 }
