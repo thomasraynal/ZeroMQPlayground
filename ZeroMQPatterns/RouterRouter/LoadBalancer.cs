@@ -84,7 +84,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.RouterRouter
                         _frontend.ReceiveReady += (s, e) =>
                         {
                             var transportMessage = e.Socket.ReceiveMultipartMessage()
-                                                           .GetMessage<Work>();
+                                                           .GetMessageFromRouter<Work>();
 
                             var work = transportMessage.Message;
 
@@ -100,7 +100,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.RouterRouter
                         _backend.ReceiveReady += (s, e) =>
                         {
                             var transportMessage = e.Socket.ReceiveMultipartMessage()
-                                                 .GetMessage<Work>();
+                                                 .GetMessageFromRouter<Work>();
 
                             var work = transportMessage.Message;
 

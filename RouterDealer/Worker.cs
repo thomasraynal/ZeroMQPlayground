@@ -9,30 +9,36 @@ using System.Threading;
 using System.Threading.Tasks;
 using ZeroMQPlayground.Shared;
 
-namespace ZeroMQPlayground.ZeroMQPatterns.RouterRouter
+namespace ZeroMQPlayground.RouterDealer
 {
     public class Worker
     {
-        private string _loadBalancerEndpoint;
+        private string _clusterEndpoint;
         private RequestSocket _worker;
         private readonly CancellationToken _cancel;
         private readonly ConfiguredTaskAwaitable _proc;
-        private readonly Guid _id;
+ 
 
-        public Worker(string loadBalancerEndpoint, CancellationToken cancel)
+        public Worker(string clusterEndpoint, CancellationToken cancel)
         {
-            _loadBalancerEndpoint = loadBalancerEndpoint;
+            _clusterEndpoint = clusterEndpoint;
             _cancel = cancel;
+
+            WorkerId = Guid.NewGuid();
+
             _proc = Task.Run(Start).ConfigureAwait(false);
-            _id = Guid.NewGuid();
+;
         }
+
+        public Guid WorkerId { get; private set; }
 
         public void Start()
         {
 
             using (_worker = new RequestSocket())
             {
-                _worker.Connect(_loadBalancerEndpoint);
+                _worker.Options.Identity = WorkerId.ToByteArray();
+                _worker.Connect(_clusterEndpoint);
 
                 var ready = new Work()
                 {
@@ -49,7 +55,9 @@ namespace ZeroMQPlayground.ZeroMQPatterns.RouterRouter
                     var workBytes = _worker.ReceiveFrameBytes();
                     var work = JsonConvert.DeserializeObject<Work>(Encoding.UTF8.GetString(workBytes));
                     work.Status = WorkerStatus.Finished;
+
                     Task.Delay(100).Wait();
+
                     var messageBytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(work));
                     _worker.SendFrame(messageBytes);
                 }

@@ -3,102 +3,79 @@ using NetMQ.Sockets;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace ZeroMQPlayground
+namespace ZeroMQPlayground.RouterDealer
 {
+
     [TestFixture]
     public class TestRouterDealer
     {
-
-        //[Test]
-        //public async Task TestE2E()
-        //{
-        //    const int delay = 3000; // millis
-
-        //    var clientSocketPerThread = new ThreadLocal<DealerSocket>();
-
-        //    using (var server = new RouterSocket("@tcp://127.0.0.1:5556"))
-        //    using (var poller = new NetMQPoller())
-        //    {
-    
-        //        for (int i = 0; i < 3; i++)
-        //        {
-        //            new Task((state) =>
-        //            {
-        //                DealerSocket client = null;
-
-        //                if (!clientSocketPerThread.IsValueCreated)
-        //                {
-        //                    client = new DealerSocket();
-        //                    client.Options.Identity =
-        //                        Encoding.Unicode.GetBytes(state.ToString());
-        //                    client.Connect("tcp://127.0.0.1:5556");
-        //                    client.ReceiveReady += Client_ReceiveReady;
-        //                    clientSocketPerThread.Value = client;
-        //                    poller.Add(client);
-        //                }
-        //                else
-        //                {
-        //                    client = clientSocketPerThread.Value;
-        //                }
-
-        //                while (true)
-        //                {
-        //                    var messageToServer = new NetMQMessage();
-        //                    //messageToServer.AppendEmptyFrame();
-        //                    messageToServer.Append(state.ToString());
-        //                    PrintFrames("Client Sending", messageToServer);
-        //                    client.SendMultipartMessage(messageToServer);
-        //                    Thread.Sleep(delay);
-        //                }
-
-        //            }, string.Format("client {0}", i), TaskCreationOptions.LongRunning).Start();
-        //        }
-
-        //        // start the poller
-        //        poller.RunAsync();
-
-        //        // server loop
-        //        while (true)
-        //        {
-        //            var clientMessage = server.ReceiveMultipartMessage();
-
-        //            PrintFrames("Server receiving", clientMessage);
-        //            if (clientMessage.FrameCount == 2)
-        //            {
-        //                var clientAddress = clientMessage[0];
-        //                var clientOriginalMessage = clientMessage[1].ConvertToString();
-        //                string response = string.Format("{0} back from server {1}",
-        //                    clientOriginalMessage, DateTime.Now.ToLongTimeString());
-        //                var messageToClient = new NetMQMessage();
-        //                messageToClient.Append(clientAddress);
-        //                //messageToClient.AppendEmptyFrame();
-        //                messageToClient.Append(response);
-        //                server.SendMultipartMessage(messageToClient);
-        //            }
-        //        }
-        //    }
-        //}
+        class ClusterPack
+        {
+            public Cluster Cluster { get; set; }
+            public List<Worker> Workers { get; set; }
+        }
 
 
-        //void PrintFrames(string operationType, NetMQMessage message)
-        //{
-        //    for (int i = 0; i < message.FrameCount; i++)
-        //    {
-        //        Console.WriteLine("{0} Socket : Frame[{1}] = {2}", operationType, i,
-        //            message[i].ConvertToString());
-        //    }
-        //}
+        private async Task<ClusterPack> CreateCluster(string clusterEndpoint, string toGatewayEndpoint, string gatewayClusterStateEndpoint, int nbWorkers, CancellationToken token)
+        {
+            var cluster = new Cluster(toGatewayEndpoint, gatewayClusterStateEndpoint, clusterEndpoint);
 
-        //void Client_ReceiveReady(object sender, NetMQSocketEventArgs e)
-        //{
-        //    string result = e.Socket.ReceiveFrameString();
-        //    Console.WriteLine("REPLY {0}", result);
+            await Task.Delay(250);
 
-        //}
+            var result =  new ClusterPack()
+            {
+                Cluster = cluster,
+                Workers = Enumerable.Range(0, nbWorkers).Select(_ => new Worker(clusterEndpoint, token)).ToList()
+            };
+
+            await Task.Delay(250);
+
+            return result;
+        }
+
+        [Test]
+        public async Task TestE2E()
+        {
+            var gatewayFrontend = "tcp://localhost:8080";
+            var gatewayBackend = "tcp://localhost:8181";
+            var gatewayClusterStateEnpoint = "tcp://localhost:8282";
+
+            var cluster1Endpoint = "tcp://localhost:8383";
+            var cluster2Endpoint = "tcp://localhost:8484";
+
+            var cancellation = new CancellationTokenSource();
+
+            var client = new Client(gatewayFrontend);
+            var gateway = new Gateway(gatewayFrontend, gatewayBackend, gatewayClusterStateEnpoint);
+
+            await Task.Delay(250);
+
+            var cluster1 = await CreateCluster(cluster1Endpoint, gatewayBackend, gatewayClusterStateEnpoint, 2, cancellation.Token);
+            var cluster2 = await CreateCluster(cluster2Endpoint, gatewayBackend, gatewayClusterStateEnpoint, 2, cancellation.Token);
+
+            var tasks = Enumerable.Range(0, 10).Select(_ => client.DoWork());
+
+            var results = await Task.WhenAll(tasks);
+
+            Assert.AreEqual(10, results.Count());
+
+            var availableWorkers = new[] { cluster1, cluster2 }.SelectMany(pack => pack.Workers).Select(worker => worker.WorkerId);
+
+            var usedWorkers = results.Select(work => work.WorkerId).Distinct();
+
+            var areAllWOrkersUsed = usedWorkers.All(w => availableWorkers.Any(w1 => w1 == w));
+
+            Assert.IsTrue(areAllWOrkersUsed);
+
+            cancellation.Cancel();
+
+        }
+
     }
 }
 
