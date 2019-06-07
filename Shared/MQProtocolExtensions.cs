@@ -22,6 +22,19 @@ namespace ZeroMQPlayground.Shared
     public static class MQProtocolExtensions
     {
 
+        public static TansportMessage<T> GetMessageFromProducer<T>(this NetMQMessage message)
+        {
+            var transportMessage = new TansportMessage<T>()
+            {
+                Topic = UTF8Encoding.UTF8.GetString(message[0].Buffer),
+                MessageBytes = message[1].Buffer
+            };
+
+            transportMessage.Message = transportMessage.MessageBytes.Deserialize<T>();
+
+            return transportMessage;
+        }
+
         public static TansportMessage<T> GetMessageFromDealer<T>(this NetMQMessage message)
         {
             var transportMessage = new TansportMessage<T>()
