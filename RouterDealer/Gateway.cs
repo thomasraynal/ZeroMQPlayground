@@ -34,7 +34,9 @@ namespace ZeroMQPlayground.RouterDealer
         private NetMQPoller _workPoller;
         private NetMQPoller _clusterStatePoller;
 
-        public Gateway(string toClientsEndpoint, string toClustersEndpoint, string clusterStateEndpoint)
+        private readonly AutoResetEvent _resetEvent = new AutoResetEvent(false);
+
+        public Gateway(string toClientsEndpoint, string toClustersEndpoint, string clusterStateEndpoint, CancellationToken token)
         {
             _toClientsEndpoint = toClientsEndpoint;
             _toClustersEndpoint = toClustersEndpoint;
@@ -44,9 +46,9 @@ namespace ZeroMQPlayground.RouterDealer
 
             _works = new BlockingCollection<Work>();
 
-            _routerProc = Task.Run(Start).ConfigureAwait(false);
-            _clusterAssignmentProc = Task.Run(Work).ConfigureAwait(false);
-            _clusterStateProc = Task.Run(ClusterSate).ConfigureAwait(false);
+            _routerProc = Task.Run(Start, token).ConfigureAwait(false);
+            _clusterAssignmentProc = Task.Run(Work, token).ConfigureAwait(false);
+            _clusterStateProc = Task.Run(ClusterSate, token).ConfigureAwait(false);
         }
 
         private void ClusterSate()
@@ -64,6 +66,9 @@ namespace ZeroMQPlayground.RouterDealer
                      {
                          return value;
                      });
+
+                    _resetEvent.Set();
+
                 };
 
                 using (_clusterStatePoller = new NetMQPoller { _clusterState })
@@ -76,10 +81,7 @@ namespace ZeroMQPlayground.RouterDealer
 
         private Guid NextWorker()
         {
-            while (_clustersState.Count == 0)
-            {
-                Task.Delay(10).Wait();
-            }
+            _resetEvent.WaitOne();
 
             return _clustersState.OrderByDescending(state => state.Value.AvailableWorkers)
                                  .FirstOrDefault().Key;

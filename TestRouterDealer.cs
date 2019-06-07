@@ -23,14 +23,14 @@ namespace ZeroMQPlayground.RouterDealer
 
         private async Task<ClusterPack> CreateCluster(string clusterEndpoint, string toGatewayEndpoint, string gatewayClusterStateEndpoint, int nbWorkers, CancellationToken token)
         {
-            var cluster = new Cluster(toGatewayEndpoint, gatewayClusterStateEndpoint, clusterEndpoint);
+            var cluster = new Cluster(toGatewayEndpoint, gatewayClusterStateEndpoint, clusterEndpoint, token);
 
             await Task.Delay(250);
 
             var result =  new ClusterPack()
             {
                 Cluster = cluster,
-                Workers = Enumerable.Range(0, nbWorkers).Select(_ => new Worker(clusterEndpoint, token)).ToList()
+                Workers = Enumerable.Range(0, nbWorkers).Select(_ => new Worker(clusterEndpoint, token)).ToList(),
             };
 
             await Task.Delay(250);
@@ -51,7 +51,7 @@ namespace ZeroMQPlayground.RouterDealer
             var cancellation = new CancellationTokenSource();
 
             var client = new Client(gatewayFrontend);
-            var gateway = new Gateway(gatewayFrontend, gatewayBackend, gatewayClusterStateEnpoint);
+            var gateway = new Gateway(gatewayFrontend, gatewayBackend, gatewayClusterStateEnpoint, cancellation.Token);
 
             await Task.Delay(250);
 
@@ -72,7 +72,13 @@ namespace ZeroMQPlayground.RouterDealer
 
             Assert.IsTrue(areAllWOrkersUsed);
 
+            gateway.Kill();
+            cluster1.Cluster.Kill();
+            cluster2.Cluster.Kill();
+
             cancellation.Cancel();
+
+  
 
         }
 

@@ -45,20 +45,18 @@ namespace ZeroMQPlayground.RouterDealer
                     Status = WorkerStatus.Ready
                 };
 
-                var readyBytes = ready.Serialize();
-
-                _worker.SendFrame(readyBytes);
+                _worker.SendFrame(ready.Serialize());
 
                 while (!_cancel.IsCancellationRequested)
                 {
 
                     var workBytes = _worker.ReceiveFrameBytes();
-                    var work = JsonConvert.DeserializeObject<Work>(Encoding.UTF8.GetString(workBytes));
+                    var work = workBytes.Deserialize<Work>();
                     work.Status = WorkerStatus.Finished;
 
-                    Task.Delay(100).Wait();
+                    Thread.Sleep(100);
 
-                    var messageBytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(work));
+                    var messageBytes = work.Serialize();
                     _worker.SendFrame(messageBytes);
                 }
             }

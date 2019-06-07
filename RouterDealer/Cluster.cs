@@ -35,7 +35,9 @@ namespace ZeroMQPlayground.RouterDealer
         private NetMQPoller _workPoller;
         private NetMQPoller _statePublisherPoller;
 
-        public Cluster(string gatewayBackendpoint, string gatewayClusterStateEnpoint, string clusterEndpoint)
+        private AutoResetEvent _resetEvent = new AutoResetEvent(false);
+
+        public Cluster(string gatewayBackendpoint, string gatewayClusterStateEnpoint, string clusterEndpoint,CancellationToken token)
         {
             _gatewayEndpoint = gatewayBackendpoint;
             _gatewayClusterStateEnpoint = gatewayClusterStateEnpoint;
@@ -46,8 +48,8 @@ namespace ZeroMQPlayground.RouterDealer
             _workers = new Queue<Guid>();
             _works = new BlockingCollection<Work>();
 
-            _endpointProc = Task.Run(Start).ConfigureAwait(false);
-            _enqueueWorks = Task.Run(DoWork).ConfigureAwait(false);
+            _endpointProc = Task.Run(Start, token).ConfigureAwait(false);
+            _enqueueWorks = Task.Run(DoWork, token).ConfigureAwait(false);
 
         }
 
@@ -82,12 +84,10 @@ namespace ZeroMQPlayground.RouterDealer
         {
             foreach (var work in _works.GetConsumingEnumerable())
             {
-                Guid worker;
 
-                while (!_workers.TryDequeue(out worker))
-                {
-                    Task.Delay(20).Wait();
-                }
+                _resetEvent.WaitOne();
+
+                var worker = _workers.Dequeue();
 
                 work.WorkerId = worker;
 
@@ -100,6 +100,7 @@ namespace ZeroMQPlayground.RouterDealer
 
         public void Kill()
         {
+            if (null == _workPoller) return;
             _workPoller.Stop();
         }
 
@@ -143,17 +144,17 @@ namespace ZeroMQPlayground.RouterDealer
                             {
                                 _workers.Enqueue(new Guid(transportMessage.SenderId));
                             }
-                            if (work.Status == WorkerStatus.Finished)
+                            else if (work.Status == WorkerStatus.Finished)
                             {
                                 _toGateway.SendFrame(transportMessage.MessageBytes);
                                 _workers.Enqueue(new Guid(transportMessage.SenderId));
                             }
 
+                            _resetEvent.Set();
+
                         };
 
-                        //refacto - one dto
-
-                        //register to the gateway router
+                        //register to the gateway router...
                         _toGateway.SendFrame(Work.Ready.Serialize());
 
                         //...then start state publish
