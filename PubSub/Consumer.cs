@@ -28,7 +28,7 @@ namespace ZeroMQPlayground.PubSub
         private RouterSocket _heartbeatSocket;
 
         public const int HeartbeatFailureTolerance = 2;
-        public const int HeartbeatDelay = 1000;
+        public const int HeartbeatDelay = 250;
 
         public Consumer(ConsumerConfiguration<TEvent> consumerConfiguration, IDirectory directory, JsonSerializerSettings settings)
         {
@@ -126,7 +126,7 @@ namespace ZeroMQPlayground.PubSub
 
                     heartbeatQuery.SendFrame(msg);
 
-                    Task.Delay(HeartbeatDelay).Wait();
+                    Thread.Sleep(HeartbeatDelay);
 
                     var heartbeatMessage = new NetMQMessage();
 
@@ -160,7 +160,7 @@ namespace ZeroMQPlayground.PubSub
 
                 while (!TryGetNextConsumer())
                 {
-                    Task.Delay(1000).Wait();
+                    Thread.Sleep(100);
                 }
 
                 _currentConsumerTaskCancellation = new CancellationTokenSource();

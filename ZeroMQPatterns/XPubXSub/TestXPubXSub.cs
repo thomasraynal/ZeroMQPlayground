@@ -15,11 +15,11 @@ namespace ZeroMQPlayground.ZeroMQPatterns.XPubXSub
     [TestFixture]
     public class TestXPubXSub
     {
-        //[TearDown]
-        //public void TearDown()
-        //{
-        //    NetMQConfig.Cleanup(false);
-        //}
+        [TearDown]
+        public void TearDown()
+        {
+            NetMQConfig.Cleanup(false);
+        }
 
         [Test]
         public async Task TestE2E()

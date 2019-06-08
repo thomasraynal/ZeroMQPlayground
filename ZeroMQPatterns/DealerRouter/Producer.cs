@@ -51,7 +51,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.DealerRouter
 
                     _producer.SendFrame(messageBytes);
 
-                    Task.Delay(100).Wait();
+                    Thread.Sleep(100);
                 }
             }
 

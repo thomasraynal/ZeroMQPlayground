@@ -49,7 +49,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.RouterRouter
                     var workBytes = _worker.ReceiveFrameBytes();
                     var work = JsonConvert.DeserializeObject<Work>(Encoding.UTF8.GetString(workBytes));
                     work.Status = WorkerStatus.Finished;
-                    Task.Delay(100).Wait();
+                    Thread.Sleep(100);
                     var messageBytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(work));
                     _worker.SendFrame(messageBytes);
                 }

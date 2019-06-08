@@ -205,7 +205,7 @@ namespace ZeroMQPlayground.Tests.PushPull
 
                }, cancel.Token).Start();
 
-            await Task.Delay(2000);
+            await Task.Delay(1000);
 
             new Task(async () =>
             {
@@ -243,7 +243,7 @@ namespace ZeroMQPlayground.Tests.PushPull
 
             }, cancel.Token).Start();
 
-            await Task.Delay(5000);
+            await Task.Delay(2000);
 
             cancel.Cancel();
 

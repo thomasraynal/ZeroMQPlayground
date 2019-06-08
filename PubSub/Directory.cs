@@ -16,7 +16,7 @@ namespace ZeroMQPlayground.PubSub
     {
         private const string DirectoryHeartbeatEnpoint = "tcp://localhost:9090";
 
-        private const int HeartbeatDelay = 500;
+        private const int HeartbeatDelay = 250;
 
         private readonly ConcurrentDictionary<String, ProducerDescriptor> _stateOfTheWorld;
         private readonly ConfiguredTaskAwaitable _heartbeatTask;
@@ -52,7 +52,7 @@ namespace ZeroMQPlayground.PubSub
 
                         heartbeatQuery.SendFrame(msg);
 
-                        Task.Delay(HeartbeatDelay).Wait();
+                        Thread.Sleep(HeartbeatDelay);
 
                         var heartbeatMessage = new NetMQMessage();
 

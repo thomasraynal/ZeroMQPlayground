@@ -39,7 +39,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.DealerRouter
             var router = new Router(routerEndpoint, dealerEndpoint, cancellation.Token);
 
 
-            await Task.Delay(2000);
+            await Task.Delay(1000);
 
 
             Assert.Greater(consumer1.Received.Count, 0);

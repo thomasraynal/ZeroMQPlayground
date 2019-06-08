@@ -44,7 +44,7 @@ namespace ZeroMQPlayground.PubSub
 
             _directory.Register(new ProducerRegistrationDto()
             {
-                Endpoint = _producerConfiguration.EndpointForClient,
+                Endpoint = _producerConfiguration.Endpoint,
                 Topic = typeof(TEvent).ToString(),
                 HeartbeatEndpoint = _producerConfiguration.HeartbeatEnpoint
 

@@ -20,7 +20,6 @@ namespace ZeroMQPlayground.RouterDealer
             public List<Worker> Workers { get; set; }
         }
 
-
         private async Task<ClusterPack> CreateCluster(string clusterEndpoint, string toGatewayEndpoint, string gatewayClusterStateEndpoint, int nbWorkers, CancellationToken token)
         {
             var cluster = new Cluster(toGatewayEndpoint, gatewayClusterStateEndpoint, clusterEndpoint, token);

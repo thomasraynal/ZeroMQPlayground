@@ -26,7 +26,7 @@ namespace ZeroMQPlayground.Shared
         {
             var transportMessage = new TansportMessage<T>()
             {
-                Topic = UTF8Encoding.UTF8.GetString(message[0].Buffer),
+                Topic = Encoding.UTF8.GetString(message[0].Buffer),
                 MessageBytes = message[1].Buffer
             };
 

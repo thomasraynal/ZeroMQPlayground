@@ -38,7 +38,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.RouterRouter
 
             var client = new Client(loadbalancerFrontend);
 
-            var tasks = Enumerable.Range(0, 50).Select(_ => client.DoWork());
+            var tasks = Enumerable.Range(0, 100).Select(_ => client.DoWork());
 
             var works = await Task.WhenAll(tasks);
 

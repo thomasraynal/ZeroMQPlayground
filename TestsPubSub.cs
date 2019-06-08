@@ -52,7 +52,7 @@ namespace ZeroMQPlayground.Tests.PubSub
             }, cancel.Token).Start();
 
 
-            await Task.Delay(1500);
+            await Task.Delay(500);
 
             Assert.IsNotNull(host);
 
@@ -104,8 +104,7 @@ namespace ZeroMQPlayground.Tests.PubSub
             var configuration = new ProducerConfiguration()
             {
                 IsTest = true,
-                Endpoint = "tcp://*:8080",
-                EndpointForClient= "tcp://localhost:8080",
+                Endpoint = "tcp://localhost:8080",
                 Id = Guid.NewGuid()
             };
 
@@ -113,7 +112,7 @@ namespace ZeroMQPlayground.Tests.PubSub
 
             producer.Start();
 
-            await Task.Delay(1000);
+            await Task.Delay(500);
 
             new Task(() =>
             {
@@ -170,14 +169,14 @@ namespace ZeroMQPlayground.Tests.PubSub
 
             var directoryEndpoint = "http://localhost:8080";
 
-            var producer1Endpoint = "tcp://*:8181";
+            var producer1Endpoint = "tcp://localhost:8181";
             var realProducer1Endpoint = producer1Endpoint.Replace("*", "localhost");
             var producer1HeartbeatEndpoint = "tcp://localhost:8282";
 
             var consumerEndpoint = "tcp://localhost:8383";
             var consumerHeartbeatEndpoint = "tcp://localhost:8484";
 
-            var producer2Endpoint = "tcp://*:8585";
+            var producer2Endpoint = "tcp://localhost:8585";
             var realProducer2Endpoint = producer2Endpoint.Replace("*", "localhost");
             var producer2HeartbeatEndpoint = "tcp://localhost:8686";
 
@@ -200,7 +199,7 @@ namespace ZeroMQPlayground.Tests.PubSub
             }, cancel.Token).Start();
 
 
-            await Task.Delay(2000);
+            await Task.Delay(500);
 
             var directory = RestService.For<IDirectory>(directoryEndpoint);
 
@@ -210,7 +209,6 @@ namespace ZeroMQPlayground.Tests.PubSub
                 IsTest = true,
                 Endpoint = producer1Endpoint,
                 HeartbeatEnpoint = producer1HeartbeatEndpoint,
-                EndpointForClient = realProducer1Endpoint,
                 Id = Guid.NewGuid()
             };
             var configurationProducer2 = new ProducerConfiguration()
@@ -218,7 +216,6 @@ namespace ZeroMQPlayground.Tests.PubSub
                 IsTest = true,
                 Endpoint = producer2Endpoint,
                 HeartbeatEnpoint = producer2HeartbeatEndpoint,
-                EndpointForClient = realProducer2Endpoint,
                 Id = Guid.NewGuid()
             };
 
@@ -229,7 +226,7 @@ namespace ZeroMQPlayground.Tests.PubSub
             //start only one producer
             producer1.Start();
 
-            await Task.Delay(1000);
+            await Task.Delay(500);
 
             var configurationConsumer1 = new ConsumerConfiguration<AccidentEvent>()
             {
@@ -252,7 +249,7 @@ namespace ZeroMQPlayground.Tests.PubSub
             //start consumer
             consumer.Start();
 
-            await Task.Delay(2000);
+            await Task.Delay(1000);
 
             //the consumer should have fetch and subscribe to a producer
             var stateOfTheWorld = await directory.GetStateOfTheWorld();
@@ -273,7 +270,7 @@ namespace ZeroMQPlayground.Tests.PubSub
             //kill the producer
             producer1.Stop();
 
-            await Task.Delay(2000);
+            await Task.Delay(1000);
 
             //the directory should have heartbeat the consumer, the consumer should not have consume any more event 
             stateOfTheWorld = await directory.GetStateOfTheWorld();
@@ -285,7 +282,7 @@ namespace ZeroMQPlayground.Tests.PubSub
             //start the second producer
             producer2.Start();
 
-            await Task.Delay(2000);
+            await Task.Delay(1000);
 
             //the directory shoud have register the new producer, the consumer should have subscribe to the new consumer
             stateOfTheWorld = await directory.GetStateOfTheWorld();
@@ -307,7 +304,7 @@ namespace ZeroMQPlayground.Tests.PubSub
             var cancel = new CancellationTokenSource();
 
             var directoryEndpoint = "http://localhost:8080";
-            var producer1Endpoint = "tcp://*:8181";
+            var producer1Endpoint = "tcp://localhost:8181";
             var producer1HeartbeatEndpoint = "tcp://localhost:8282";
 
             IWebHost host = null;
@@ -327,7 +324,7 @@ namespace ZeroMQPlayground.Tests.PubSub
             }, cancel.Token).Start();
 
 
-            await Task.Delay(2000);
+            await Task.Delay(500);
 
             var directory = RestService.For<IDirectory>(directoryEndpoint);
 
@@ -336,14 +333,13 @@ namespace ZeroMQPlayground.Tests.PubSub
                 IsTest = true,
                 Endpoint = producer1Endpoint,
                 HeartbeatEnpoint = producer1HeartbeatEndpoint,
-                EndpointForClient = producer1Endpoint.Replace("*", "localhost"),
                 Id = Guid.NewGuid()
             };
 
             var producer1 = new AccidentProducer(configurationProducer1, directory, new JsonSerializerSettings());
             producer1.Start();
 
-            await Task.Delay(1000);
+            await Task.Delay(500);
 
             var configurationConsumer1 = new ConsumerConfiguration<AccidentEvent>()
             {
@@ -364,7 +360,7 @@ namespace ZeroMQPlayground.Tests.PubSub
 
             consumer.Start();
 
-            await Task.Delay(1000);
+            await Task.Delay(500);
 
             cancel.Cancel();
 

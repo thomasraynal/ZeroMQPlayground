@@ -40,7 +40,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.InProc
                 router.Produce(unitOfWork, unitOfWorkHandle);
             }
 
-            await Task.Delay(3000);
+            await Task.Delay(1000);
 
         }
     }
