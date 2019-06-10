@@ -25,7 +25,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.ParanoidPirate
 
             var gateway = new Gateway(gatewayToClientsEndpoint, gatewayToWorkersEndpoint, gatewayHeartbeatEndpoint, cancelationTokenSource.Token);
 
-            await Task.Delay(1000);
+            await Task.Delay(500);
 
             var clients = Enumerable.Range(0, 2)
                                     .Select(index => new Client(gatewayToClientsEndpoint, gatewayHeartbeatEndpoint, cancelationTokenSource.Token))
@@ -46,7 +46,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.ParanoidPirate
                                  isGatewayUp = heartbeat;
                              });
 
-            await Task.Delay(1000);
+            await Task.Delay(500);
 
             Assert.IsTrue(isGatewayUp);
 
@@ -67,7 +67,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.ParanoidPirate
             gateway = new Gateway(gatewayToClientsEndpoint, gatewayToWorkersEndpoint, gatewayHeartbeatEndpoint, cancelationTokenSource.Token);
 
             //be sure all heartbeats are run...
-            await Task.Delay(2000);
+            await Task.Delay(1500);
 
             Assert.IsTrue(isGatewayUp);
 
