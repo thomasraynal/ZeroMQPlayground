@@ -4,7 +4,7 @@ using System.Text;
 
 namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Transport
 {
-    public enum WorkflowState
+    public enum Workflow
     {
         None,
         WorkerReady,

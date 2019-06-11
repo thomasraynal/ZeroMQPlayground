@@ -24,7 +24,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Transport
         public Guid ClientId { get; set; }
         public Type CommandType { get; set; }
         public Type MessageType { get; set; }
-        public WorkflowState State { get; set; }
+        public Workflow State { get; set; }
         public byte[] Message { get; set; }
         public bool IsResponse { get; set; }
     }

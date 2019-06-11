@@ -110,7 +110,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
             {
                 CommandType = typeof(TCommand),
 
-                State = WorkflowState.WorkerReady
+                State = Workflow.WorkerReady
             };
 
             return response;
@@ -134,7 +134,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
             response.CommandId = ask.CommandId;
             response.IsResponse = true;
 
-            response.State = WorkflowState.WorkFinished;
+            response.State = Workflow.WorkFinished;
 
             return response;
 

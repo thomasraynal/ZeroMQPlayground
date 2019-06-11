@@ -15,11 +15,12 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
             WorkerId = workerId;
             LastHeartbeat = DateTime.Now;
             CommandType = commandType;
+            LastHeartbeat = DateTime.Now;
         }
 
         public bool IsAlive(TimeSpan allowedTimeSpan)
         {
-            return LastHeartbeat.Add(allowedTimeSpan) < DateTime.Now;
+            return LastHeartbeat.Add(allowedTimeSpan) > DateTime.Now;
         }
 
         public Type CommandType { get; set; }

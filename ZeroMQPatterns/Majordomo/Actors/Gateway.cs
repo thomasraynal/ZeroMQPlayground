@@ -31,6 +31,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
 
         private NetMQPoller _poller;
 
+        private ConcurrentDictionary<Guid,WorkerDescriptor> _registeredWorkers;
         private ConcurrentDictionary<Type, NetMQQueue<TransportMessage>> _workQueues;
         private ConcurrentDictionary<Type, NetMQQueue<WorkerDescriptor>> _workerQueues;
 
@@ -55,19 +56,15 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
 
                 while (!_cancel.IsCancellationRequested)
                 {
-                   var heartbeatQuery = _heartbeat.ReceiveFrameBytes()
-                                                  .Deserialize<Heartbeat>();
+                    var heartbeatQuery = _heartbeat.ReceiveFrameBytes()
+                                                   .Deserialize<Heartbeat>();
 
                     if (heartbeatQuery.Descriptor.ActorType == ActorType.Worker)
                     {
-                        //todo heartbeat worker
-
-                        //var worker = _workerQueue.FirstOrDefault(w => w.WorkerId == heartbeatQuery.Descriptor.ActorId);
-
-                        //if (null != worker)
-                        //{
-                        //    worker.LastHeartbeat = DateTime.Now;
-                        //}
+                        if (_registeredWorkers.TryGetValue(heartbeatQuery.Descriptor.ActorId, out var worker))
+                        {
+                            worker.LastHeartbeat = DateTime.Now;
+                        }
                     }
 
                     _heartbeat.SendFrame(this.GetHeartbeat(HeartbeatType.Pong).Serialize());
@@ -84,28 +81,46 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
             return Task.CompletedTask;
         }
 
-        private void OnWorkAdded(TransportMessage work)
+        private bool TryGetWorker(TransportMessage work, out WorkerDescriptor worker)
         {
+            worker = null;
+
             if (_workerQueues.TryGetValue(work.CommandType, out var workerQueue))
             {
-                if (workerQueue.TryDequeue(out WorkerDescriptor worker, TimeSpan.FromMilliseconds(0)))
+                while (workerQueue.TryDequeue(out WorkerDescriptor workerInternal, TimeSpan.Zero))
                 {
-                    work.WorkerId = worker.WorkerId;
-
-                    _backend.SendMoreFrame(worker.WorkerId.ToByteArray())
-                            .SendMoreFrameEmpty()
-                            .SendFrame(work.Serialize());
-
-                    return;
+                    if (workerInternal.IsAlive(TimeSpan.FromMilliseconds(5000)))
+                    {
+                        worker = workerInternal;
+                        return true;
+                    }
                 }
             }
 
-            var queue = _workQueues.GetOrAdd(work.CommandType, (type) =>
-            {
-                return new NetMQQueue<TransportMessage>();
-            });
+            return false;
+        }
 
-            queue.Enqueue(work);
+        private void OnWorkAdded(TransportMessage work)
+        {
+       
+            if(TryGetWorker(work, out WorkerDescriptor worker))
+            {
+                work.WorkerId = worker.WorkerId;
+
+                _backend.SendMoreFrame(worker.WorkerId.ToByteArray())
+                        .SendMoreFrameEmpty()
+                        .SendFrame(work.Serialize());
+
+            }
+            else
+            {
+                var queue = _workQueues.GetOrAdd(work.CommandType, (type) =>
+                {
+                    return new NetMQQueue<TransportMessage>();
+                });
+
+                queue.Enqueue(work);
+            }
 
         }
 
@@ -114,7 +129,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
      
             if (_workQueues.TryGetValue(worker.CommandType, out var workQueue))
             {
-                if (workQueue.TryDequeue(out TransportMessage work, TimeSpan.FromMilliseconds(0)))
+                if (workQueue.TryDequeue(out TransportMessage work, TimeSpan.Zero))
                 {
 
                     work.WorkerId = worker.WorkerId;
@@ -140,8 +155,10 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
 
             _frontend = new RouterSocket();
             _backend = new RouterSocket();
+
             _workQueues = new ConcurrentDictionary<Type, NetMQQueue<TransportMessage>>();
             _workerQueues = new ConcurrentDictionary<Type, NetMQQueue<WorkerDescriptor>>();
+            _registeredWorkers = new ConcurrentDictionary<Guid, WorkerDescriptor>();
 
             _frontend.Bind(_toClientsEndpoint);
             _backend.Bind(_toWorkersEndpoint);
@@ -169,17 +186,27 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
 
                 var work = enveloppe.Message;
 
-                if (work.State == WorkflowState.WorkerReady)
+                if (work.State == Workflow.WorkerReady)
                 {
-                    OnWorkerAdded(new WorkerDescriptor(enveloppe.SenderId, work.CommandType));
+                    var worker = _registeredWorkers.GetOrAdd(new Guid(enveloppe.SenderId), (key) =>
+                    {
+                        return new WorkerDescriptor(enveloppe.SenderId, work.CommandType);
+                    });
+
+                    OnWorkerAdded(worker);
                 }
-                if (work.State == WorkflowState.WorkFinished)
+                if (work.State == Workflow.WorkFinished)
                 {
                     _frontend.SendMoreFrame(work.ClientId.ToByteArray())
                              .SendMoreFrameEmpty()
                              .SendFrame(enveloppe.MessageBytes);
 
-                    OnWorkerAdded(new WorkerDescriptor(enveloppe.SenderId, work.CommandType));
+                    var worker = _registeredWorkers.GetOrAdd(new Guid(enveloppe.SenderId), (key) =>
+                    {
+                        return new WorkerDescriptor(enveloppe.SenderId, work.CommandType);
+                    });
+
+                    OnWorkerAdded(worker);
                 }
 
             };

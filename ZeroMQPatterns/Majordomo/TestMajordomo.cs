@@ -18,6 +18,12 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
     public class TestMajordomo
     {
         [Test]
+        public async Task TestWorkerDisconnect()
+        {
+            throw new NotImplementedException();
+        }
+
+        [Test]
         public async Task TestE2E()
         {
             var gatewayToClientsEndpoint = "tcp://localhost:8080";
