@@ -8,7 +8,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
 {
     public interface IClient : ICanHeartbeat, IActor
     {
-        Task<TResult> Send<TCommand, TResult>(TCommand command, TimeSpan maxResponseDelay)
+        Task<TResult> Send<TCommand, TResult>(TCommand command)
             where TResult : ICommandResult
             where TCommand : ICommand;
     }

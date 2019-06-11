@@ -7,6 +7,6 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
     public interface ICanHeartbeat
     {
         IObservable<bool> IsConnected { get; }
-        void SendHeartbeat(string[] targets, TimeSpan hearbeatDelay, TimeSpan hearbeatMaxDelay);
+        void DoHeartbeat(string[] targets, TimeSpan hearbeatDelay, TimeSpan hearbeatMaxDelay);
     }
 }

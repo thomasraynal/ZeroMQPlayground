@@ -5,9 +5,9 @@ using System.Threading.Tasks;
 
 namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
 {
-    public abstract class ActorBase : IActor
+    public abstract class Actor : IActor
     {
-        protected ActorBase()
+        protected Actor()
         {
             Id = Guid.NewGuid();
         }

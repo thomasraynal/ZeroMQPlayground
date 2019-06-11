@@ -4,7 +4,10 @@ using System.Text;
 
 namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
 {
-    public interface IGateway : IHandleHeartbeat, IActor
+    public enum ActorType
     {
+        Client,
+        Worker,
+        Gateway
     }
 }

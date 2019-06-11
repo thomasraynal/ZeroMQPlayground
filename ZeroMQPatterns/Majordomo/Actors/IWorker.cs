@@ -5,13 +5,12 @@ using System.Threading.Tasks;
 
 namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
 {
-    public interface IActor
+    public interface IWorker<TCommand,TResult> : IWorker
     {
-        Guid Id { get; }
+        Task<TResult> Handle(TCommand command);
+    }
 
-        ActorDescriptor GetDescriptor();
-
-        Task Start();
-        Task Stop();
+    public interface IWorker : ICanHeartbeat, IActor
+    {
     }
 }

@@ -15,6 +15,12 @@ namespace ZeroMQPlayground.ZeroMQPatterns.ParanoidPirate
     [TestFixture]
     public class TestParanoidPirate
     {
+        [TearDown]
+        public void TearDown()
+        {
+            NetMQConfig.Cleanup(false);
+        }
+
         [Test]
         public async Task TestE2E()
         {

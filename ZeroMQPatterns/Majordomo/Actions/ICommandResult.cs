@@ -6,5 +6,6 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actions
 {
     public interface ICommandResult
     {
+        Guid WorkerId { get; set; }
     }
 }
