@@ -7,7 +7,6 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Transport
 {
     public class TransportMessage
     {
-        public static TransportMessage Ready = new TransportMessage() { State = WorkflowState.WorkerReady };
 
         public TransportMessage()
         {
@@ -23,6 +22,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Transport
         public Guid MessageId { get; set; }
         public Guid WorkerId { get; set; }
         public Guid ClientId { get; set; }
+        public Type CommandType { get; set; }
         public Type MessageType { get; set; }
         public WorkflowState State { get; set; }
         public byte[] Message { get; set; }

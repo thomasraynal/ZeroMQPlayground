@@ -23,7 +23,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Domain
                 Type = (TeaType)_rand.Next(0, Enum.GetNames(typeof(TeaType)).Count())
             };
 
-            await Task.Delay(_rand.Next(500, 1500));
+            await Task.Delay(_rand.Next(250, 500));
 
             return beer;
         }

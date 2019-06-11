@@ -30,6 +30,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
 
             await Task.Delay(500);
 
+            //2 clients
             var clients = Enumerable.Range(0, 2)
                                     .Select(_ =>
                                     {
@@ -40,6 +41,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
                                     .ToList();
 
 
+            //2*worker by service
             var workers = Enumerable.Range(0, 2)
                                     .Select(_ =>
                                     {
@@ -64,39 +66,52 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
                              });
 
             //ensure all heartbeats are fired...
-            await Task.Delay(1500);
+            await Task.Delay(2000);
 
             Assert.IsTrue(isGatewayUp);
 
-            var works = clients.SelectMany(client => Enumerable.Range(0, 5)
-                               .Select(_ => client.Send<MakeTea,MakeTeaResult>(new MakeTea()))).ToList();
+            var teaWorks = clients.SelectMany(client => Enumerable.Range(0, 3).Select(async _ =>
+                await client.Send<MakeTea, MakeTeaResult>(new MakeTea())
+            )).ToList();
 
-            var results = await Task.WhenAll(works);
+            var bearWorks = clients.SelectMany(client => Enumerable.Range(0, 3).Select(async _ =>
+                await client.Send<BrewBeer, BrewBeerResult>(new BrewBeer())
+            )).ToList();
 
-            Assert.AreEqual(workers.Count(), results.Select(result => result.WorkerId).Distinct().Count());
+            var teaResults  = await Task.WhenAll(teaWorks);
+            var beerResults = await Task.WhenAll(bearWorks);
+
+            Assert.IsTrue(teaResults.All(work => null != work));
+            Assert.IsTrue(beerResults.All(work => null != work));
+
+            //all workers should have get at least a job
+            Assert.AreEqual(2, teaResults.Select(result => result.WorkerId).Distinct().Count());
+            Assert.AreEqual(2, beerResults.Select(result => result.WorkerId).Distinct().Count());
 
             Assert.IsTrue(isGatewayUp);
 
             await gateway.Stop();
 
-            await Task.Delay(1000);
+            //ensure all heartbeats are fired...
+            await Task.Delay(2500);
 
             Assert.IsFalse(isGatewayUp);
 
             gateway = new Gateway(gatewayToClientsEndpoint, gatewayToWorkersEndpoint, gatewayHeartbeatEndpoint);
+            await gateway.Start();
 
-            //be sure all heartbeats are run...
-            await Task.Delay(1500);
+            //ensure all heartbeats are fired...
+            await Task.Delay(2500);
 
             Assert.IsTrue(isGatewayUp);
 
-            works = clients.SelectMany(client => Enumerable.Range(0, 5)
-                           .Select(_ => client.Send<MakeTea, MakeTeaResult>(new MakeTea()))).ToList();
+           var works = clients.SelectMany(client => Enumerable.Range(0, 3)
+                           .Select(async _ => await client.Send<MakeTea, MakeTeaResult>(new MakeTea()))).ToList();
 
-            Assert.DoesNotThrowAsync(async () =>
-            {
-                await Task.WhenAll(works);
-            });
+
+            var results = await Task.WhenAll(works);
+
+            Assert.IsTrue(works.All(work => null != work));
 
             var stop = new[] { gateway.Stop() }.Concat(workers.Select(worker => worker.Stop())).Concat(clients.Select(client => client.Stop()));
 

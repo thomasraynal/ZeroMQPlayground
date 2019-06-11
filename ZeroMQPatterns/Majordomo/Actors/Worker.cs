@@ -11,12 +11,15 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using ZeroMQPlayground.Shared;
+using ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actions;
 using ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors;
 using ZeroMQPlayground.ZeroMQPatterns.Majordomo.Transport;
 
 namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
 {
     public abstract class Worker<TCommand,TResult>: Actor, IWorker<TCommand, TResult>
+        where TCommand : ICommand
+        where TResult : ICommandResult
     {
         private readonly string _gatewayEndpoint;
         private readonly string _gatewayHeartbeatEndpoint;
@@ -51,7 +54,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
 
         public override Task Start()
         {
-            _heartbeatProc = Task.Run(() => DoHeartbeat(new[] { _gatewayHeartbeatEndpoint }, TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(1000)), _cancel.Token)
+            _heartbeatProc = Task.Run(() => DoHeartbeat(new[] { _gatewayHeartbeatEndpoint }, TimeSpan.FromMilliseconds(250), TimeSpan.FromMilliseconds(1000)), _cancel.Token)
                          .ConfigureAwait(false);
 
             _disconnected = IsConnected
@@ -80,6 +83,8 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
 
                         var response = heartbeat.TryReceiveFrameBytes(hearbeatMaxDelay, out var responseBytes);
 
+                        if (_cancel.IsCancellationRequested) return;
+
                         _isConnected.OnNext(response);
                     }
 
@@ -99,7 +104,19 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
             _workProc = Task.Run(DoStart, _cancel.Token).ConfigureAwait(false);
         }
 
-        public async Task<TransportMessage> CreateResponse(TransportMessage ask)
+        private TransportMessage CreateReadyEvent()
+        {
+            var response = new TransportMessage
+            {
+                CommandType = typeof(TCommand),
+
+                State = WorkflowState.WorkerReady
+            };
+
+            return response;
+        }
+
+        private async Task<TransportMessage> CreateResponse(TransportMessage ask)
         {
             var response = new TransportMessage();
 
@@ -107,7 +124,10 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
 
             var commandResult = await Handle(command);
 
+            commandResult.WorkerId = Id;
+
             response.Message = commandResult.Serialize();
+            response.CommandType = typeof(TCommand);
             response.MessageType = typeof(TResult);
             response.WorkerId = ask.WorkerId;
             response.ClientId = ask.ClientId;
@@ -133,7 +153,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
                     Thread.Sleep(50);
                 }
 
-                _worker.SendFrame(TransportMessage.Ready.Serialize());
+                _worker.SendFrame(CreateReadyEvent().Serialize());
 
                 while (!_cancel.IsCancellationRequested)
                 {
@@ -143,8 +163,6 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
                     if (_cancel.IsCancellationRequested) return;
 
                     var response = await CreateResponse(work);
-
-                    response.WorkerId = work.WorkerId;
 
                     _worker.SendFrame(response.Serialize());
                 }
