@@ -17,10 +17,97 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
     [TestFixture]
     public class TestMajordomo
     {
-        [Test]
-        public async Task TestWorkerDisconnect()
+        [TearDown]
+        public void TearDown()
         {
-            throw new NotImplementedException();
+            NetMQConfig.Cleanup(false);
+        }
+
+        [Test]
+        public async Task TestWorkerDisconnectAndReconnect()
+        {
+            var gatewayToClientsEndpoint = "tcp://localhost:8080";
+            var gatewayToWorkersEndpoint = "tcp://localhost:8181";
+            var gatewayHeartbeatEndpoint = "tcp://localhost:8282";
+
+            var gateway = new Gateway(gatewayToClientsEndpoint, gatewayToWorkersEndpoint, gatewayHeartbeatEndpoint);
+            await gateway.Start();
+
+            await Task.Delay(500);
+
+            var client = new Client(gatewayToClientsEndpoint, gatewayHeartbeatEndpoint);
+            await client.Start();
+
+            await Task.Delay(500);
+
+            var worker = new BeerBrewer(gatewayToWorkersEndpoint, gatewayHeartbeatEndpoint);
+            await worker.Start();
+
+            await Task.Delay(500);
+
+            BrewBeerResult result = null;
+
+            Assert.DoesNotThrowAsync(async () =>
+            {
+                result = await client.Send<BrewBeer, BrewBeerResult>(new BrewBeer());
+            });
+
+            Assert.IsNotNull(result);
+
+            await worker.Stop();
+
+            //ensure all heartbeats are run
+            await Task.Delay(2000);
+
+            Assert.ThrowsAsync<TaskCanceledException>(async () =>
+            {
+                await client.Send<BrewBeer, BrewBeerResult>(new BrewBeer());
+            });
+
+            worker = new BeerBrewer(gatewayToWorkersEndpoint, gatewayHeartbeatEndpoint);
+            await worker.Start();
+
+            //ensure all heartbeats are run
+            await Task.Delay(2000);
+
+            Assert.DoesNotThrowAsync(async () =>
+            {
+                result = await client.Send<BrewBeer, BrewBeerResult>(new BrewBeer());
+            });
+
+            Assert.IsNotNull(result);
+
+            var stop = new[] { gateway.Stop(), client.Stop(), worker.Stop() };
+
+            await Task.WhenAll(stop);
+
+        }
+        [Test]
+        public async Task TestCommandTimeout()
+        {
+            var gatewayToClientsEndpoint = "tcp://localhost:8080";
+            var gatewayToWorkersEndpoint = "tcp://localhost:8181";
+            var gatewayHeartbeatEndpoint = "tcp://localhost:8282";
+
+            var gateway = new Gateway(gatewayToClientsEndpoint, gatewayToWorkersEndpoint, gatewayHeartbeatEndpoint);
+            await gateway.Start();
+
+            await Task.Delay(500);
+
+            var client = new Client(gatewayToClientsEndpoint, gatewayHeartbeatEndpoint);
+            await client.Start();
+
+            await Task.Delay(500);
+
+            Assert.ThrowsAsync<TaskCanceledException>(async() =>
+            {
+               await client.Send<MakeTea, MakeTeaResult>(new MakeTea());
+
+            });
+
+            var stop = new[] { gateway.Stop(), client.Stop()};
+
+            await Task.WhenAll(stop);
         }
 
         [Test]
@@ -84,7 +171,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
                 await client.Send<BrewBeer, BrewBeerResult>(new BrewBeer())
             )).ToList();
 
-            var teaResults  = await Task.WhenAll(teaWorks);
+            var teaResults = await Task.WhenAll(teaWorks);
             var beerResults = await Task.WhenAll(bearWorks);
 
             Assert.IsTrue(teaResults.All(work => null != work));
@@ -111,13 +198,17 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
 
             Assert.IsTrue(isGatewayUp);
 
-           var works = clients.SelectMany(client => Enumerable.Range(0, 3)
-                           .Select(async _ => await client.Send<MakeTea, MakeTeaResult>(new MakeTea()))).ToList();
+            //all commands should be handled 
+            Assert.DoesNotThrowAsync(async () =>
+            {
+
+                var works = clients.SelectMany(client => Enumerable.Range(0, 3)
+                            .Select(async _ => await client.Send<MakeTea, MakeTeaResult>(new MakeTea()))).ToList();
 
 
-            var results = await Task.WhenAll(works);
+                var results = await Task.WhenAll(works);
 
-            Assert.IsTrue(works.All(work => null != work));
+            });
 
             var stop = new[] { gateway.Stop() }.Concat(workers.Select(worker => worker.Stop())).Concat(clients.Select(client => client.Stop()));
 

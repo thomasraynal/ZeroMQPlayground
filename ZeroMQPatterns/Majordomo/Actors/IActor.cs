@@ -9,7 +9,10 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
     {
         Guid Id { get; }
 
+        ActorType Type { get; }
+
         ActorDescriptor GetDescriptor();
+        Heartbeat GetHeartbeat(HeartbeatType type);
 
         Task Start();
         Task Stop();

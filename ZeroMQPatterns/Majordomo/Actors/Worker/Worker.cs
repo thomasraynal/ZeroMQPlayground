@@ -33,6 +33,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
         private readonly Random _rand;
         private RequestSocket _worker;
 
+        //todo : configuration descriptor
         public Worker(string gatewayEndpoint, string gatewayHeartbeatEndpoint)
         {
             _gatewayEndpoint = gatewayEndpoint;
@@ -54,6 +55,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
 
         public override Task Start()
         {
+            //todo : config
             _heartbeatProc = Task.Run(() => DoHeartbeat(new[] { _gatewayHeartbeatEndpoint }, TimeSpan.FromMilliseconds(250), TimeSpan.FromMilliseconds(1000)), _cancel.Token)
                          .ConfigureAwait(false);
 

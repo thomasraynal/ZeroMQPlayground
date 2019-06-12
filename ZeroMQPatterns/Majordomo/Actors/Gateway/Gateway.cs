@@ -39,6 +39,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
 
         public IObservable<bool> IsConnected => Observable.Return(true);
 
+        //todo : configuration descriptor
         public Gateway(string toClientsEndpoint, string toWorkersEndpoint, string heartbeatEndpoint)
         {
             _toClientsEndpoint = toClientsEndpoint;
@@ -89,6 +90,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
             {
                 while (workerQueue.TryDequeue(out WorkerDescriptor workerInternal, TimeSpan.Zero))
                 {
+                    //todo : config
                     if (workerInternal.IsAlive(TimeSpan.FromMilliseconds(5000)))
                     {
                         worker = workerInternal;

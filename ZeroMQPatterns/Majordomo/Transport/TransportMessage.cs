@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using ZeroMQPlayground.Shared;
 
@@ -7,12 +8,12 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Transport
 {
     public class TransportMessage
     {
-
+        
         public TransportMessage()
         {
-            MessageId = Guid.NewGuid();
+             MessageId = Guid.NewGuid();
         }
-
+      
         public T Deserialize<T>()
         {
             return (T)Message.Deserialize(MessageType);

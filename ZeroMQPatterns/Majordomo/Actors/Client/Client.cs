@@ -26,6 +26,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
 
         private readonly Dictionary<Guid, TaskCompletionSource<ICommandResult>> _commandResults;
 
+        //todo : configuration descriptor
         public Client(string gatewayEndpoint, string gatewayHeartbeatEndpoint)
         {
             _gatewayEndpoint = gatewayEndpoint;
@@ -68,7 +69,6 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
             }
         }
 
-        //todo: handle timeout
         public Task<TResult> Send<TCommand, TResult>(TCommand command)
             where TCommand : ICommand
             where TResult : ICommandResult
@@ -82,12 +82,17 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
                 CommandType = typeof(TCommand)
             };
 
+            //todo config
             var task = new TaskCompletionSource<ICommandResult>();
+            var cancel = new CancellationTokenSource(5000);
+
+            cancel.Token.Register(() => task.TrySetCanceled(), false);
+
             _commandResults.Add(message.CommandId, task);
 
             _client.SendFrame(message.Serialize());
 
-            return task.Task.ContinueWith(result => (TResult)result.Result);
+            return task.Task.ContinueWith(result => (TResult)result.Result, cancel.Token);
 
         }
 
@@ -98,6 +103,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
 
         public override Task Start()
         {
+            //todo : config
             _hearbeatProc = Task.Run(() => DoHeartbeat(new[] { _gatewayHeartbeatEndpoint }, TimeSpan.FromMilliseconds(250), TimeSpan.FromMilliseconds(1000)), _cancel.Token)
                                 .ConfigureAwait(false);
 
