@@ -102,6 +102,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
             return false;
         }
 
+        //todo : expiration for work
         private void OnWorkAdded(TransportMessage work)
         {
        
@@ -126,6 +127,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
 
         }
 
+        //todo : expiration for work
         private void OnWorkerAdded(WorkerDescriptor worker)
         {
      
