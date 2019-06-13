@@ -17,10 +17,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
 {
     public class Gateway : Actor, IGateway
     {
-
-        private readonly string _toClientsEndpoint;
-        private readonly string _toWorkersEndpoint;
-        private readonly string _heartbeatEndpoint;
+        private readonly GatewayConfiguration _configuration;
         private readonly CancellationTokenSource _cancel;
 
         private RouterSocket _backend;
@@ -39,20 +36,15 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
 
         public IObservable<bool> IsConnected => Observable.Return(true);
 
-        //todo : configuration descriptor
-        public Gateway(string toClientsEndpoint, string toWorkersEndpoint, string heartbeatEndpoint)
+        public Gateway(GatewayConfiguration configuration)
         {
-            _toClientsEndpoint = toClientsEndpoint;
-            _toWorkersEndpoint = toWorkersEndpoint;
-            _heartbeatEndpoint = heartbeatEndpoint;
-
+            _configuration = configuration;
             _cancel = new CancellationTokenSource();
-
         }
 
         public void HandleHeartbeat()
         {
-            using (_heartbeat = new ResponseSocket(_heartbeatEndpoint))
+            using (_heartbeat = new ResponseSocket(_configuration.HeartbeatEndpoint))
             {
 
                 while (!_cancel.IsCancellationRequested)
@@ -90,8 +82,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
             {
                 while (workerQueue.TryDequeue(out WorkerDescriptor workerInternal, TimeSpan.Zero))
                 {
-                    //todo : config
-                    if (workerInternal.IsAlive(TimeSpan.FromMilliseconds(5000)))
+                    if (workerInternal.IsAlive(_configuration.WorkerTtl))
                     {
                         worker = workerInternal;
                         return true;
@@ -127,7 +118,6 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
 
         }
 
-        //todo : expiration for work
         private void OnWorkerAdded(WorkerDescriptor worker)
         {
      
@@ -135,14 +125,16 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
             {
                 if (workQueue.TryDequeue(out TransportMessage work, TimeSpan.Zero))
                 {
+                    if (work.CheckTtl(_configuration.WorkTtl))
+                    {
+                        work.WorkerId = worker.WorkerId;
 
-                    work.WorkerId = worker.WorkerId;
+                        _backend.SendMoreFrame(worker.WorkerId.ToByteArray())
+                                .SendMoreFrameEmpty()
+                                .SendFrame(work.Serialize());
 
-                    _backend.SendMoreFrame(worker.WorkerId.ToByteArray())
-                            .SendMoreFrameEmpty()
-                            .SendFrame(work.Serialize());
-
-                    return;
+                        return;
+                    }
                 }
             }
 
@@ -164,8 +156,8 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
             _workerQueues = new ConcurrentDictionary<Type, NetMQQueue<WorkerDescriptor>>();
             _registeredWorkers = new ConcurrentDictionary<Guid, WorkerDescriptor>();
 
-            _frontend.Bind(_toClientsEndpoint);
-            _backend.Bind(_toWorkersEndpoint);
+            _frontend.Bind(_configuration.ToClientsEndpoint);
+            _backend.Bind(_configuration.ToWorkersEndpoint);
 
             _poller = new NetMQPoller { _frontend, _backend };
 

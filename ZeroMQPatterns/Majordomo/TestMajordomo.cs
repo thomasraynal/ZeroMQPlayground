@@ -17,6 +17,32 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
     [TestFixture]
     public class TestMajordomo
     {
+
+        private const string defaultGatewayToClientsEndpoint = "tcp://localhost:8080";
+        private const string defaultGatewayToWorkersEndpoint = "tcp://localhost:8181";
+        private const string defaultGatewayHeartbeatEndpoint = "tcp://localhost:8282";
+
+
+        private static readonly GatewayConfiguration DefaultGatewayConfiguration = new GatewayConfiguration(
+                                                            defaultGatewayToClientsEndpoint,
+                                                            defaultGatewayToWorkersEndpoint,
+                                                            defaultGatewayHeartbeatEndpoint,
+                                                            workerTtl: TimeSpan.FromMilliseconds(5000),
+                                                            workTtl: TimeSpan.FromMilliseconds(5000));
+
+        private static readonly ClientConfiguration DefaultClientConfiguration = new ClientConfiguration(
+                                                            commandTimeout: TimeSpan.FromMilliseconds(5000),
+                                                            defaultGatewayToClientsEndpoint,
+                                                            defaultGatewayHeartbeatEndpoint,
+                                                            hearbeatDelay: TimeSpan.FromMilliseconds(250),
+                                                            hearbeatMaxDelay: TimeSpan.FromMilliseconds(1000));
+
+        private static readonly WorkerConfiguration DefaultWorkerConfiguration = new WorkerConfiguration(
+                                                            defaultGatewayToWorkersEndpoint,
+                                                            defaultGatewayHeartbeatEndpoint,
+                                                            hearbeatDelay: TimeSpan.FromMilliseconds(250),
+                                                            hearbeatMaxDelay: TimeSpan.FromMilliseconds(1000));
+
         [TearDown]
         public void TearDown()
         {
@@ -26,21 +52,19 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
         [Test]
         public async Task TestWorkerDisconnectAndReconnect()
         {
-            var gatewayToClientsEndpoint = "tcp://localhost:8080";
-            var gatewayToWorkersEndpoint = "tcp://localhost:8181";
-            var gatewayHeartbeatEndpoint = "tcp://localhost:8282";
 
-            var gateway = new Gateway(gatewayToClientsEndpoint, gatewayToWorkersEndpoint, gatewayHeartbeatEndpoint);
+
+            var gateway = new Gateway(DefaultGatewayConfiguration);
             await gateway.Start();
 
             await Task.Delay(500);
 
-            var client = new Client(gatewayToClientsEndpoint, gatewayHeartbeatEndpoint);
+            var client = new Client(DefaultClientConfiguration);
             await client.Start();
 
             await Task.Delay(500);
 
-            var worker = new BeerBrewer(gatewayToWorkersEndpoint, gatewayHeartbeatEndpoint);
+            var worker = new BeerBrewer(DefaultWorkerConfiguration);
             await worker.Start();
 
             await Task.Delay(500);
@@ -64,7 +88,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
                 await client.Send<BrewBeer, BrewBeerResult>(new BrewBeer());
             });
 
-            worker = new BeerBrewer(gatewayToWorkersEndpoint, gatewayHeartbeatEndpoint);
+            worker = new BeerBrewer(DefaultWorkerConfiguration);
             await worker.Start();
 
             //ensure all heartbeats are run
@@ -85,16 +109,13 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
         [Test]
         public async Task TestCommandTimeout()
         {
-            var gatewayToClientsEndpoint = "tcp://localhost:8080";
-            var gatewayToWorkersEndpoint = "tcp://localhost:8181";
-            var gatewayHeartbeatEndpoint = "tcp://localhost:8282";
 
-            var gateway = new Gateway(gatewayToClientsEndpoint, gatewayToWorkersEndpoint, gatewayHeartbeatEndpoint);
+            var gateway = new Gateway(DefaultGatewayConfiguration);
             await gateway.Start();
 
             await Task.Delay(500);
 
-            var client = new Client(gatewayToClientsEndpoint, gatewayHeartbeatEndpoint);
+            var client = new Client(DefaultClientConfiguration);
             await client.Start();
 
             await Task.Delay(500);
@@ -113,11 +134,8 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
         [Test]
         public async Task TestE2E()
         {
-            var gatewayToClientsEndpoint = "tcp://localhost:8080";
-            var gatewayToWorkersEndpoint = "tcp://localhost:8181";
-            var gatewayHeartbeatEndpoint = "tcp://localhost:8282";
 
-            var gateway = new Gateway(gatewayToClientsEndpoint, gatewayToWorkersEndpoint, gatewayHeartbeatEndpoint);
+            var gateway = new Gateway(DefaultGatewayConfiguration);
 
             await gateway.Start();
 
@@ -127,7 +145,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
             var clients = Enumerable.Range(0, 2)
                                     .Select(_ =>
                                     {
-                                        var client = new Client(gatewayToClientsEndpoint, gatewayHeartbeatEndpoint);
+                                        var client = new Client(DefaultClientConfiguration);
                                         client.Start().Wait();
                                         return client;
                                     })
@@ -138,8 +156,8 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
             var workers = Enumerable.Range(0, 2)
                                     .Select(_ =>
                                     {
-                                        IWorker makeTea = new TeaMaker(gatewayToWorkersEndpoint, gatewayHeartbeatEndpoint);
-                                        IWorker brewBeer = new BeerBrewer(gatewayToWorkersEndpoint, gatewayHeartbeatEndpoint);
+                                        IWorker makeTea = new TeaMaker(DefaultWorkerConfiguration);
+                                        IWorker brewBeer = new BeerBrewer(DefaultWorkerConfiguration);
                                         makeTea.Start().Wait();
                                         brewBeer.Start().Wait();
                                         return new IWorker[] { makeTea, brewBeer };
@@ -190,7 +208,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
 
             Assert.IsFalse(isGatewayUp);
 
-            gateway = new Gateway(gatewayToClientsEndpoint, gatewayToWorkersEndpoint, gatewayHeartbeatEndpoint);
+            gateway = new Gateway(DefaultGatewayConfiguration);
             await gateway.Start();
 
             //ensure all heartbeats are fired...

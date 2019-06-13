@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors;
 
 namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Domain
 {
@@ -10,7 +11,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Domain
     {
         private readonly Random _rand;
 
-        public BeerBrewer(string gatewayEndpoint, string gatewayHeartbeatEndpoint) : base(gatewayEndpoint, gatewayHeartbeatEndpoint)
+        public BeerBrewer(WorkerConfiguration configuration): base(configuration) 
         {
             _rand = new Random();
         }

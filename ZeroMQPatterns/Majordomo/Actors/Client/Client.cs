@@ -15,22 +15,21 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
 {
     public class Client : Actor, IClient
     {
-        private string _gatewayEndpoint;
-        private string _gatewayHeartbeatEndpoint;
+
         private ConfiguredTaskAwaitable _hearbeatProc;
         private ConfiguredTaskAwaitable _responsePollerProc;
         private DealerSocket _client;
         private NetMQPoller _poller;
+
+        private readonly ClientConfiguration _configuration;
         private readonly CancellationTokenSource _cancel;
         private readonly BehaviorSubject<bool> _isConnected;
 
         private readonly Dictionary<Guid, TaskCompletionSource<ICommandResult>> _commandResults;
 
-        //todo : configuration descriptor
-        public Client(string gatewayEndpoint, string gatewayHeartbeatEndpoint)
+        public Client(ClientConfiguration configuration)
         {
-            _gatewayEndpoint = gatewayEndpoint;
-            _gatewayHeartbeatEndpoint = gatewayHeartbeatEndpoint;
+            _configuration = configuration;
             _cancel = new CancellationTokenSource();
             _isConnected = new BehaviorSubject<bool>(false);
 
@@ -82,9 +81,8 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
                 CommandType = typeof(TCommand)
             };
 
-            //todo config
             var task = new TaskCompletionSource<ICommandResult>();
-            var cancel = new CancellationTokenSource(5000);
+            var cancel = new CancellationTokenSource(_configuration.CommandTimeout);
 
             cancel.Token.Register(() => task.TrySetCanceled(), false);
 
@@ -103,14 +101,14 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
 
         public override Task Start()
         {
-            //todo : config
-            _hearbeatProc = Task.Run(() => DoHeartbeat(new[] { _gatewayHeartbeatEndpoint }, TimeSpan.FromMilliseconds(250), TimeSpan.FromMilliseconds(1000)), _cancel.Token)
+
+            _hearbeatProc = Task.Run(() => DoHeartbeat(new[] { _configuration.GatewayHeartbeatEndpoint }, _configuration.HearbeatDelay, _configuration.HearbeatMaxDelay), _cancel.Token)
                                 .ConfigureAwait(false);
 
 
             _client = new DealerSocket();
             _client.Options.Identity = Id.ToByteArray();
-            _client.Connect(_gatewayEndpoint);
+            _client.Connect(_configuration.GatewayEndpoint);
 
             _poller = new NetMQPoller { _client };
 
@@ -142,7 +140,6 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
 
             _poller.Stop();
 
-            _client.Disconnect(_gatewayEndpoint);
             _client.Close();
             _client.Dispose();
 

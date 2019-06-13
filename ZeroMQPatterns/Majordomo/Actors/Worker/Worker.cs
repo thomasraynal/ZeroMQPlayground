@@ -1,13 +1,10 @@
 ﻿using NetMQ;
 using NetMQ.Sockets;
-using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Runtime.CompilerServices;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using ZeroMQPlayground.Shared;
@@ -21,26 +18,21 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
         where TCommand : ICommand
         where TResult : ICommandResult
     {
-        private readonly string _gatewayEndpoint;
-        private readonly string _gatewayHeartbeatEndpoint;
 
         private readonly CancellationTokenSource _cancel;
         private ConfiguredTaskAwaitable _workProc;
         private ConfiguredTaskAwaitable _heartbeatProc;
         private IDisposable _disconnected;
+        private readonly WorkerConfiguration _configuration;
 
         private readonly BehaviorSubject<bool> _isConnected;
-        private readonly Random _rand;
         private RequestSocket _worker;
 
-        //todo : configuration descriptor
-        public Worker(string gatewayEndpoint, string gatewayHeartbeatEndpoint)
+        public Worker(WorkerConfiguration configuration)
         {
-            _gatewayEndpoint = gatewayEndpoint;
-            _gatewayHeartbeatEndpoint = gatewayHeartbeatEndpoint;
+            _configuration = configuration;
             _isConnected = new BehaviorSubject<bool>(false);
 
-            _rand = new Random();
             _cancel = new CancellationTokenSource();
 
         }
@@ -55,8 +47,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
 
         public override Task Start()
         {
-            //todo : config
-            _heartbeatProc = Task.Run(() => DoHeartbeat(new[] { _gatewayHeartbeatEndpoint }, TimeSpan.FromMilliseconds(250), TimeSpan.FromMilliseconds(1000)), _cancel.Token)
+            _heartbeatProc = Task.Run(() => DoHeartbeat(new[] { _configuration.GatewayHeartbeatEndpoint }, _configuration.HearbeatDelay, _configuration.HearbeatMaxDelay), _cancel.Token)
                          .ConfigureAwait(false);
 
             _disconnected = IsConnected
@@ -148,7 +139,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
             using (_worker = new RequestSocket())
             {
                 _worker.Options.Identity = Id.ToByteArray();
-                _worker.Connect(_gatewayEndpoint);
+                _worker.Connect(_configuration.GatewayEndpoint);
 
                 while (!_isConnected.Value)
                 {
