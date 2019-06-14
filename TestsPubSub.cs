@@ -88,7 +88,7 @@ namespace ZeroMQPlayground.Tests.PubSub
             cancel.Cancel();
 
             await host.StopAsync();
-
+            
         }
 
         [Test]
@@ -107,7 +107,7 @@ namespace ZeroMQPlayground.Tests.PubSub
                 Endpoint = "tcp://localhost:8080",
                 Id = Guid.NewGuid()
             };
-
+            
             var producer = new AccidentProducer(configuration, directory, new JsonSerializerSettings());
 
             producer.Start();
@@ -170,14 +170,12 @@ namespace ZeroMQPlayground.Tests.PubSub
             var directoryEndpoint = "http://localhost:8080";
 
             var producer1Endpoint = "tcp://localhost:8181";
-            var realProducer1Endpoint = producer1Endpoint.Replace("*", "localhost");
             var producer1HeartbeatEndpoint = "tcp://localhost:8282";
 
             var consumerEndpoint = "tcp://localhost:8383";
             var consumerHeartbeatEndpoint = "tcp://localhost:8484";
 
             var producer2Endpoint = "tcp://localhost:8585";
-            var realProducer2Endpoint = producer2Endpoint.Replace("*", "localhost");
             var producer2HeartbeatEndpoint = "tcp://localhost:8686";
 
 
@@ -257,7 +255,6 @@ namespace ZeroMQPlayground.Tests.PubSub
 
             //the producer shouold have register to the registry
             var producer = stateOfTheWorld.First();
-            Assert.AreEqual(producer.Endpoint, realProducer1Endpoint);
             Assert.AreEqual(ProducerState.Alive, producer.State);
 
             //at least an event should have match the filter

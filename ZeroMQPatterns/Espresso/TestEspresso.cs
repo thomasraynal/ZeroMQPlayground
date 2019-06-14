@@ -13,7 +13,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Expresso
 {
 
     [TestFixture]
-    public class TestExpresso
+    public class TestEspresso
     {
         [TearDown]
         public void TearDown()

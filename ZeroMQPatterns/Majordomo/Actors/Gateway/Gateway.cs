@@ -93,7 +93,6 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo.Actors
             return false;
         }
 
-        //todo : expiration for work
         private void OnWorkAdded(TransportMessage work)
         {
        
