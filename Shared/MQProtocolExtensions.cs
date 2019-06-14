@@ -48,6 +48,19 @@ namespace ZeroMQPlayground.Shared
             return transportMessage;
         }
 
+        public static MessageEnveloppe<T> GetMessageFromPublisher<T>(this NetMQMessage message)
+        {
+            var transportMessage = new MessageEnveloppe<T>()
+            {
+                Topic = message[0].Buffer.Deserialize<string>(),
+                MessageBytes = message[1].Buffer
+            };
+
+            transportMessage.Message = transportMessage.MessageBytes.Deserialize<T>();
+
+            return transportMessage;
+        }
+
         public static MessageEnveloppe<T> GetMessageFromRouter<T>(this NetMQMessage message)
         {
             var transportMessage = new MessageEnveloppe<T>()
