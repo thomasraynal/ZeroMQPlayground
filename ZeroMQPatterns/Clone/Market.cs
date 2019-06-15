@@ -15,12 +15,12 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
         private readonly MarketConfiguration _configuration;
         private readonly CancellationTokenSource _cancel;
         private ConfiguredTaskAwaitable _workProc;
-        private PushSocket _pushMarketStateUpdate;
         private DealerSocket _getMarketState;
-        private SubscriberSocket _getMarketStateUpdate;
+        private SubscriberSocket _getMarketUpdates;
 
         public SortedList<long, MarketStateUpdate> Updates { get; set; }
         public Guid Id { get; }
+        public String Name { get; }
 
         public Market(MarketConfiguration configuration)
         {
@@ -29,16 +29,23 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
             Updates = new SortedList<long, MarketStateUpdate>();
 
             Id = Guid.NewGuid();
+            Name = _configuration.Name;
 
             _cancel = new CancellationTokenSource();
 
         }
-        public void Push(MarketStateDto update)
+        public void Push()
         {
-            _pushMarketStateUpdate.SendFrame(update.Serialize());
+            var update = MarketStateDto.Random(Name);
+
+            using (var sender = new PushSocket(_configuration.PushMarketUpdateEndpoint))
+            {
+                sender.SendFrame(update.Serialize());
+                Thread.Sleep(200);
+            }
         }
 
-        public Task Synchronize()
+        private Task Synchronize()
         {
             _getMarketState.SendFrame(MarketStateRequest.Default.Serialize());
 
@@ -55,9 +62,21 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
 
         public async Task Start()
         {
+            var cancel = new CancellationTokenSource(_configuration.RouterConnectionTimeout);
+
+            _getMarketState = new DealerSocket();
+            _getMarketState.Connect(_configuration.GetMarketStateEndpoint);
+            _getMarketState.Options.Identity = Id.ToByteArray();
+
+            _getMarketUpdates = new SubscriberSocket();
+            _getMarketUpdates.Connect(_configuration.GetMarketUpdatesEndpoint);
+            _getMarketUpdates.Options.Identity = Id.ToByteArray();
+
+            _getMarketUpdates.SubscribeToAnyTopic();
+
             _workProc = Task.Run(DoStart, _cancel.Token).ConfigureAwait(false);
 
-            var cancel = new CancellationTokenSource(_configuration.RouterConnectionTimeout);
+            await Task.Delay(200);
 
             await Task.Run(Synchronize, cancel.Token);
 
@@ -67,32 +86,18 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
         {
             _cancel.Cancel();
 
-            _pushMarketStateUpdate.Close();
-            _pushMarketStateUpdate.Dispose();
-
             _getMarketState.Close();
             _getMarketState.Dispose();
 
-            _getMarketStateUpdate.Close();
-            _getMarketStateUpdate.Dispose();
+            _getMarketUpdates.Close();
+            _getMarketUpdates.Dispose();
         }
 
-        public void DoStart()
+        private void DoStart()
         {
-            _pushMarketStateUpdate = new PushSocket(_configuration.PushStateUpdateEndpoint);
-            _pushMarketStateUpdate.Options.Identity = Id.ToByteArray();
-
-            _getMarketState = new DealerSocket(_configuration.PushStateUpdateEndpoint);
-            _getMarketState.Options.Identity = Id.ToByteArray();
-
-            _getMarketStateUpdate = new SubscriberSocket(_configuration.GetUpdatesEndpoint);
-            _getMarketStateUpdate.Options.Identity = Id.ToByteArray();
-
-            _getMarketStateUpdate.SubscribeToAnyTopic();
-
             while (!_cancel.IsCancellationRequested)
             {
-                var enveloppe = _getMarketStateUpdate.ReceiveMultipartMessage()
+                var enveloppe = _getMarketUpdates.ReceiveMultipartMessage()
                                      .GetMessageFromPublisher<MarketStateUpdate>();
 
                 Updates.Add(enveloppe.Message.EventSequentialId, enveloppe.Message);

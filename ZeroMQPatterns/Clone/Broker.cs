@@ -19,9 +19,8 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
         private PublisherSocket _pushStateUpdate;
         private PullSocket _getUpdates;
         private RouterSocket _stateRequest;
+        private readonly IUniqueEventIdProvider _uniqueEventIdProvider;
         private NetMQPoller _poller;
-        private IUniqueEventIdProvider _uniqueEventIdProvider;
-
 
         public List<MarketStateUpdate> MarketUpdates { get; set; }
 
@@ -36,33 +35,52 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
 
         public void Start()
         {
+            _pushStateUpdate = new PublisherSocket();
+            _pushStateUpdate.Bind(_brokerConfiguration.GetMarketUpdatesEndpoint);
+
+            _getUpdates = new PullSocket();
+            _getUpdates.Bind(_brokerConfiguration.PushMarketUpdateEndpoint);
+
+            _stateRequest = new RouterSocket();
+            _stateRequest.Bind(_brokerConfiguration.GetMarketStateEndpoint);
+
             _workProc = Task.Run(DoStart, _cancel.Token).ConfigureAwait(false);
         }
 
         public void Stop()
         {
             _cancel.Cancel();
+
             _poller.Stop();
+
+            _pushStateUpdate.Close();
+            _pushStateUpdate.Dispose();
+
+            _getUpdates.Close();
+            _getUpdates.Dispose();
+
+            _stateRequest.Close();
+            _stateRequest.Dispose();
+
         }
 
         public void DoStart()
         {
-            _pushStateUpdate = new PublisherSocket(_brokerConfiguration.PushStateUpdateEndpoint);
-            _getUpdates = new PullSocket(_brokerConfiguration.GetUpdatesEndpoint);
-            _stateRequest = new RouterSocket(_brokerConfiguration.StateRequestEndpoint);
-
+   
             _poller = new NetMQPoller() { _getUpdates, _stateRequest };
 
             _getUpdates.ReceiveReady += (s, e) =>
             {
-                var enveloppe = e.Socket.ReceiveMultipartMessage()
-                                   .GetMessageFromDealer<MarketStateDto>();
+                var marketStateDto = e.Socket.ReceiveFrameBytes()
+                                   .Deserialize<MarketStateDto>();
 
-                var update = enveloppe.Message.ToMarketStateUpdate(_uniqueEventIdProvider.Next());
+                var update = marketStateDto.ToMarketStateUpdate(_uniqueEventIdProvider.Next());
 
                 MarketUpdates.Add(update);
 
-                _pushStateUpdate.SendFrame(update.Serialize());
+                _pushStateUpdate
+                            .SendMoreFrame(update.Asset.Serialize())
+                            .SendFrame(update.Serialize());
 
             };
 

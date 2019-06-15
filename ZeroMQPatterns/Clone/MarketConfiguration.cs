@@ -8,8 +8,8 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
     {
         public string Name { get; set; }
         public TimeSpan RouterConnectionTimeout { get; set; }
-        public string GetUpdatesEndpoint { get; set; }
-        public string StateRequestEndpoint { get; set; }
-        public string PushStateUpdateEndpoint { get; set; }
+        public string GetMarketUpdatesEndpoint { get; set; }
+        public string GetMarketStateEndpoint { get; set; }
+        public string PushMarketUpdateEndpoint { get; set; }
     }
 }
