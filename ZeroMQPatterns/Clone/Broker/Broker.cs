@@ -17,6 +17,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
         private readonly BrokerConfiguration _brokerConfiguration;
         private readonly CancellationTokenSource _cancel;
         private ConfiguredTaskAwaitable _workProc;
+        private ConfiguredTaskAwaitable _heartBeartProc;
         private PublisherSocket _publishStateUpdate;
         private SubscriberSocket _subscribeToUpdates;
         private RouterSocket _stateRequest;
@@ -48,6 +49,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
             _stateRequest.Bind(_brokerConfiguration.SendStateEndpoint);
 
             _workProc = Task.Run(DoStart, _cancel.Token).ConfigureAwait(false);
+            _heartBeartProc = Task.Run(HandleHeartbeat, _cancel.Token).ConfigureAwait(false);
         }
 
         public void Stop()
@@ -55,6 +57,9 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
             _cancel.Cancel();
 
             _poller.Stop();
+
+            _heartbeat.Close();
+            _heartbeat.Dispose();
 
             _publishStateUpdate.Close();
             _publishStateUpdate.Dispose();
@@ -76,6 +81,8 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
                 {
                     var heartbeatQuery = _heartbeat.ReceiveFrameBytes()
                                                    .Deserialize<Heartbeat>();
+
+                    if (_cancel.IsCancellationRequested) return;
 
                     _heartbeat.SendFrame(Heartbeat.Response.Serialize());
 
@@ -113,15 +120,9 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
                 var enveloppe = e.Socket.ReceiveMultipartMessage()
                                         .GetMessageFromDealer<StateRequest>();
 
-
-                var updates = Updates.GroupBy(update => update.UpdateDto.Subject)
-                                           .Select(group => group.OrderBy(update => update.Position).LastOrDefault())
-                                           .Where(update => update != null)
-                                           .ToList();
-
                 var response = new StateReply<TDto>()
                 {
-                    Updates = updates
+                    Updates = Updates
                 };
 
                 _stateRequest.SendMoreFrame(enveloppe.SenderId)

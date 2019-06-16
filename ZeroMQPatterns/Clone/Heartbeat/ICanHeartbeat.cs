@@ -7,6 +7,6 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
     public interface ICanHeartbeat
     {
         IObservable<bool> IsConnected { get; }
-        void DoHeartbeat(string target, TimeSpan hearbeatDelay, TimeSpan hearbeatMaxDelay);
+        void DoHeartbeat(TimeSpan hearbeatDelay, TimeSpan hearbeatMaxDelay);
     }
 }
