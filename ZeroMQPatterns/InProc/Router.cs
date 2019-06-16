@@ -10,7 +10,6 @@ namespace ZeroMQPlayground.ZeroMQPatterns.InProc
     public class Router<T> where T : IWork
     {
         private List<Worker<T>> _workers;
-        private readonly CancellationToken _token;
 
         public Router(CancellationToken token)
         {

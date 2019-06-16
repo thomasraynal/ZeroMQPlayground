@@ -10,7 +10,6 @@ namespace ZeroMQPlayground.ZeroMQPatterns.XPubXSub
     {
         public static readonly string[] CcyPairs = { "EUR/USD", "EUR/JPY", "EUR/GBP" };
         private readonly Random _rand;
-        private readonly CancellationToken _cancel;
 
         public FxMarket(string name,  string brokerEndpoint, CancellationToken token) : base(name, "FX", brokerEndpoint, token)
         {

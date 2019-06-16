@@ -154,7 +154,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
 
             //2*worker by service
             var workers = Enumerable.Range(0, 2)
-                                    .Select(_ =>
+                                    .SelectMany(_ =>
                                     {
                                         IWorker makeTea = new TeaMaker(DefaultWorkerConfiguration);
                                         IWorker brewBeer = new BeerBrewer(DefaultWorkerConfiguration);
@@ -162,7 +162,6 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Majordomo
                                         brewBeer.Start().Wait();
                                         return new IWorker[] { makeTea, brewBeer };
                                     })
-                                    .SelectMany(w => w)
                                     .ToList();
 
             var gatewayHeartbeats = clients.Select(client => client.IsConnected)

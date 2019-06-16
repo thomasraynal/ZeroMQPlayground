@@ -1,6 +1,7 @@
 ﻿using NetMQ;
 using NetMQ.Sockets;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
@@ -23,33 +24,53 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
         [Test]
         public async Task TestE2E()
         {
-            var pushStateUpdateEndpoint = "tcp://localhost:8080";
+
+            JsonConvert.DefaultSettings = () =>
+            {
+                var settings = new JsonSerializerSettings
+                {
+                    Formatting = Formatting.Indented,
+                    TypeNameHandling = TypeNameHandling.Objects,
+                    ContractResolver = new CamelCasePropertyNamesContractResolver()
+                };
+
+                settings.Converters.Add(new AbstractConverter<ISequenceItem<MarketStateDto>,
+                                            DefaultSequenceItem<MarketStateDto>>());
+
+
+                return settings;
+            };
+
+            var sendUpdatesEndpoint = "tcp://localhost:8080";
             var stateRequestEndpoint = "tcp://localhost:8181";
             var getUpdatesEndpoint = "tcp://localhost:8282";
 
+            var brokerHeartbeatEndpoint = "tcp://localhost:8383";
+
             var brokerConfiguration = new BrokerConfiguration()
             {
-                GetMarketUpdatesEndpoint = getUpdatesEndpoint,
-                PushMarketUpdateEndpoint = pushStateUpdateEndpoint,
-                GetMarketStateEndpoint = stateRequestEndpoint
+                PublishUpdatesEndpoint = getUpdatesEndpoint,
+                SubscribeToUpdatesEndpoint = sendUpdatesEndpoint,
+                SendStateEndpoint = stateRequestEndpoint,
+                HeartbeatEndpoint = brokerHeartbeatEndpoint
             };
 
-            var broker = new Broker(brokerConfiguration);
+            var broker = new Broker<MarketStateDto>(brokerConfiguration);
 
             broker.Start();
 
             var markets = new string[] { "AAPL", "MSFT", "GOOG", "FB" }.Select(ticker =>
              {
-                 var coonfiguration = new MarketConfiguration()
+                 var coonfiguration = new ClientConfiguration()
                  {
-                     GetMarketUpdatesEndpoint = getUpdatesEndpoint,
-                     PushMarketUpdateEndpoint = pushStateUpdateEndpoint,
-                     GetMarketStateEndpoint = stateRequestEndpoint,
+                     SubscribeToUpdatesEndpoint = getUpdatesEndpoint,
+                     PublishUpdateEndpoint = sendUpdatesEndpoint,
+                     GetStateEndpoint = stateRequestEndpoint,
                      Name = ticker,
                      RouterConnectionTimeout = TimeSpan.FromSeconds(5)
                  };
 
-                 return new Market(coonfiguration);
+                 return new Client<MarketStateDto>(coonfiguration);
 
              }).ToList();
 
@@ -60,52 +81,54 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
             var goog = markets.First(market => market.Name == "GOOG");
             var fb = markets.First(market => market.Name == "FB");
 
-            msft.Push();
+            msft.Push(MarketStateDto.Random("MSFT"));
 
-            Assert.IsTrue(broker.MarketUpdates.Count == 1);
+            await Task.Delay(200);
+
+            Assert.IsTrue(broker.Updates.Count == 1);
 
             Assert.IsTrue(markets.All(
                 market => market.Updates.Count == 1 &&
                 market.Updates.First().Key == 0 &&
-                market.Updates.First().Value.Asset == msft.Name));
+                market.Updates.First().Value.UpdateDto.Subject == msft.Name));
 
-            goog.Push();
+            goog.Push(MarketStateDto.Random("GOOG"));
 
-            Assert.IsTrue(broker.MarketUpdates.Count == 2);
+            Assert.IsTrue(broker.Updates.Count == 2);
 
             Assert.IsTrue(markets.All(
                 market => market.Updates.Count == 2 &&
                 market.Updates.ElementAt(1).Key == 1 &&
-                market.Updates.ElementAt(1).Value.Asset == goog.Name));
+                market.Updates.ElementAt(1).Value.UpdateDto.Subject == goog.Name));
 
-            fb.Push();
-            fb.Push();
-            fb.Push();
-            msft.Push();
+            fb.Push(MarketStateDto.Random("FB"));
+            fb.Push(MarketStateDto.Random("FB"));
+            fb.Push(MarketStateDto.Random("FB"));
+            msft.Push(MarketStateDto.Random("MSFT"));
 
-            var amzConfig = new MarketConfiguration()
+            var amzConfig = new ClientConfiguration()
             {
-                GetMarketUpdatesEndpoint = getUpdatesEndpoint,
-                PushMarketUpdateEndpoint = pushStateUpdateEndpoint,
-                GetMarketStateEndpoint = stateRequestEndpoint,
+                SubscribeToUpdatesEndpoint = getUpdatesEndpoint,
+                PublishUpdateEndpoint = sendUpdatesEndpoint,
+                GetStateEndpoint = stateRequestEndpoint,
                 Name = "AMZ",
                 RouterConnectionTimeout = TimeSpan.FromSeconds(5)
             };
 
-            var amz = new Market(amzConfig);
+            var amz = new Client<MarketStateDto>(amzConfig);
             await amz.Start();
 
             //should have the last event of each ticker =>  1*MSFT, 1*GOOG, 1*FB
             Assert.IsTrue(amz.Updates.Count == 3);
 
-            Assert.IsTrue(amz.Updates.ElementAt(0).Value.Asset == goog.Name);
-            Assert.IsTrue(amz.Updates.ElementAt(0).Value.EventSequentialId == 1);
+            Assert.IsTrue(amz.Updates.ElementAt(0).Value.UpdateDto.Subject == goog.Name);
+            Assert.IsTrue(amz.Updates.ElementAt(0).Value.Position == 1);
 
-            Assert.IsTrue(amz.Updates.ElementAt(1).Value.Asset == fb.Name);
-            Assert.IsTrue(amz.Updates.ElementAt(1).Value.EventSequentialId == 4);
+            Assert.IsTrue(amz.Updates.ElementAt(1).Value.UpdateDto.Subject == fb.Name);
+            Assert.IsTrue(amz.Updates.ElementAt(1).Value.Position == 4);
 
-            Assert.IsTrue(amz.Updates.ElementAt(2).Value.Asset == msft.Name);
-            Assert.IsTrue(amz.Updates.ElementAt(2).Value.EventSequentialId == 5);
+            Assert.IsTrue(amz.Updates.ElementAt(2).Value.UpdateDto.Subject == msft.Name);
+            Assert.IsTrue(amz.Updates.ElementAt(2).Value.Position == 5);
         }
 
     }

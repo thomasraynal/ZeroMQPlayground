@@ -4,8 +4,8 @@ using System.Text;
 
 namespace ZeroMQPlayground.ZeroMQPatterns.Clone
 {
-    public class MarketStateReply
+    public class StateReply<TDto> where TDto : ISubjectDto
     {
-        public List<MarketStateUpdate> Updates { get; set; }
+        public List<ISequenceItem<TDto>> Updates { get; set; }
     }
 }

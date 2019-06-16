@@ -24,7 +24,6 @@ namespace ZeroMQPlayground.ZeroMQPatterns.ParanoidPirate
         private RouterSocket _frontend;
 
         private readonly ConfiguredTaskAwaitable _endpointProc;
-        private readonly ConfiguredTaskAwaitable _enqueueWorks;
         private readonly ConfiguredTaskAwaitable _heartbeatProc;
 
         private NetMQPoller _poller;

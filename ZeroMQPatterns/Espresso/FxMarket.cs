@@ -11,7 +11,6 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Expresso
         public static readonly string[] CcyPairs = { "EUR/USD", "EUR/JPY", "EUR/GBP" };
         public static readonly string CCyPairWithUniquePrice = "EUR/CDN";
         private readonly Random _rand;
-        private readonly CancellationToken _cancel;
         private bool _isStarted;
 
         public FxMarket(string name, string brokerEndpoint, CancellationToken token) : base(name, "FX", brokerEndpoint, token)

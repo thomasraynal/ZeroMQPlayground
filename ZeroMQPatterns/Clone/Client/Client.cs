@@ -10,23 +10,24 @@ using ZeroMQPlayground.Shared;
 
 namespace ZeroMQPlayground.ZeroMQPatterns.Clone
 {
-    public class Market
+    public class Client<TDto> where TDto : ISubjectDto
     {
-        private readonly MarketConfiguration _configuration;
+        private readonly ClientConfiguration _configuration;
         private readonly CancellationTokenSource _cancel;
         private ConfiguredTaskAwaitable _workProc;
         private DealerSocket _getMarketState;
         private SubscriberSocket _getMarketUpdates;
+        private PublisherSocket _publishMarketUpdates;
 
-        public SortedList<long, MarketStateUpdate> Updates { get; set; }
+        public SortedList<long, ISequenceItem<TDto>> Updates { get; set; }
         public Guid Id { get; }
         public String Name { get; }
 
-        public Market(MarketConfiguration configuration)
+        public Client(ClientConfiguration configuration)
         {
             _configuration = configuration;
 
-            Updates = new SortedList<long, MarketStateUpdate>();
+            Updates = new SortedList<long, ISequenceItem<TDto>>();
 
             Id = Guid.NewGuid();
             Name = _configuration.Name;
@@ -34,27 +35,23 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
             _cancel = new CancellationTokenSource();
 
         }
-        public void Push()
+        public void Push(ISubjectDto dto)
         {
-            var update = MarketStateDto.Random(Name);
-
-            using (var sender = new PushSocket(_configuration.PushMarketUpdateEndpoint))
-            {
-                sender.SendFrame(update.Serialize());
-                Thread.Sleep(200);
-            }
+            _publishMarketUpdates
+                .SendMoreFrame(dto.Subject.Serialize())
+                .SendFrame(dto.Serialize());
         }
 
         private Task Synchronize()
         {
-            _getMarketState.SendFrame(MarketStateRequest.Default.Serialize());
+            _getMarketState.SendFrame(StateRequest.Default.Serialize());
 
             var enveloppe = _getMarketState.ReceiveMultipartMessage()
-                                           .GetMessageFromPublisher<MarketStateReply>();
+                                           .GetMessageFromPublisher<StateReply<TDto>>();
 
             foreach (var update in enveloppe.Message.Updates)
             {
-                Updates.Add(update.EventSequentialId, update);
+                Updates.Add(update.Position, update);
             }
 
             return Task.CompletedTask;
@@ -65,14 +62,15 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
             var cancel = new CancellationTokenSource(_configuration.RouterConnectionTimeout);
 
             _getMarketState = new DealerSocket();
-            _getMarketState.Connect(_configuration.GetMarketStateEndpoint);
+            _getMarketState.Connect(_configuration.GetStateEndpoint);
             _getMarketState.Options.Identity = Id.ToByteArray();
 
             _getMarketUpdates = new SubscriberSocket();
-            _getMarketUpdates.Connect(_configuration.GetMarketUpdatesEndpoint);
-            _getMarketUpdates.Options.Identity = Id.ToByteArray();
-
             _getMarketUpdates.SubscribeToAnyTopic();
+            _getMarketUpdates.Connect(_configuration.SubscribeToUpdatesEndpoint);
+
+            _publishMarketUpdates = new PublisherSocket();
+            _publishMarketUpdates.Connect(_configuration.PublishUpdateEndpoint);
 
             _workProc = Task.Run(DoStart, _cancel.Token).ConfigureAwait(false);
 
@@ -98,9 +96,9 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
             while (!_cancel.IsCancellationRequested)
             {
                 var enveloppe = _getMarketUpdates.ReceiveMultipartMessage()
-                                     .GetMessageFromPublisher<MarketStateUpdate>();
+                                                 .GetMessageFromPublisher<ISequenceItem<TDto>>();
 
-                Updates.Add(enveloppe.Message.EventSequentialId, enveloppe.Message);
+                Updates.Add(enveloppe.Message.Position, enveloppe.Message);
 
             }
 

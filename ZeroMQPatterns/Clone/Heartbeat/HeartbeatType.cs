@@ -4,8 +4,9 @@ using System.Text;
 
 namespace ZeroMQPlayground.ZeroMQPatterns.Clone
 {
-    public class MarketStateRequest
+    public enum HeartbeatType
     {
-        public static readonly MarketStateRequest Default = new MarketStateRequest();
+        Ping,
+        Pong
     }
 }
