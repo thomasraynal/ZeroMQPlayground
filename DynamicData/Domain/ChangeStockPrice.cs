@@ -5,23 +5,21 @@ using ZeroMQPlayground.DynamicData.Shared;
 
 namespace ZeroMQPlayground.DynamicData.Domain
 {
-    public class ChangeStockPrice : CommandBase<Stock>
+    public class ChangeStockPrice : CommandBase<string, CurrencyPair>
     {
-        public ChangeStockPrice(string stockId, double ask, double bid, double mid, double spread)
+        public ChangeStockPrice(string stockId, double ask, double bid, double mid, double spread): base(stockId)
         {
-            StockId = stockId;
             Ask = ask;
             Bid = bid;
             Mid = mid;
             Spread = spread;
         }
-        public string StockId { get; set; }
         public double Ask { get; set; }
         public double Bid { get; set; }
         public double Mid { get; set; }
         public double Spread { get; set; }
 
-        public override void Apply(Stock aggregate)
+        public override void Apply(CurrencyPair aggregate)
         {
             aggregate.Ask = Ask;
             aggregate.Bid = Bid;

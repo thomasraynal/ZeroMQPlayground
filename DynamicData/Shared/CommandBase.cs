@@ -4,7 +4,14 @@ using System.Text;
 
 namespace ZeroMQPlayground.DynamicData.Shared
 {
-    public abstract class CommandBase<TAgreggate> : EventBase<TAgreggate> where TAgreggate : IAggregate
+    public abstract class CommandBase<TKey, TAgreggate> : EventBase<TKey, TAgreggate> where TAgreggate : IAggregate<TKey>
     {
+        protected CommandBase()
+        {
+        }
+
+        protected CommandBase(TKey aggregateId) : base(aggregateId)
+        {
+        }
     }
 }

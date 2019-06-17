@@ -5,12 +5,11 @@ using ZeroMQPlayground.DynamicData.Shared;
 
 namespace ZeroMQPlayground.DynamicData.Domain
 {
-    public class Stock : AggregateBase<string>
+    public class CurrencyPair : AggregateBase<string>
     {
 
         public StockState State { get; set; }
 
-        public string Currency { get; set; }
         public double Ask { get; set; }
         public double Bid { get; set; }
         public double Mid { get; set; }

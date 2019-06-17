@@ -4,8 +4,7 @@ using System.Text;
 
 namespace ZeroMQPlayground.DynamicData.Shared
 {
-    public interface ICommand<TAgreggate> : IEvent<TAgreggate> 
-        where TAgreggate : IAggregate
+    public interface ICommand<TKey, TAgreggate> : IEvent<TKey, TAgreggate> where TAgreggate : IAggregate<TKey>
     {
     }
 }

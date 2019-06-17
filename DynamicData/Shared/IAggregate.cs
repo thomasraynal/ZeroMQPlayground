@@ -13,7 +13,9 @@ namespace ZeroMQPlayground.DynamicData
 
     public interface IAggregate<TKey> : IAggregate
     {
+        //to do : enforce seggregation on setters
         TKey Id { get; set; }
-        void Apply<TAggregate>(IEvent<TAggregate> @event) where TAggregate : IAggregate<TKey>;
+        int Version { get; set; }
+        void Apply<TAggregate>(IEvent<TKey, TAggregate> @event) where TAggregate : IAggregate<TKey>;
     }
 }

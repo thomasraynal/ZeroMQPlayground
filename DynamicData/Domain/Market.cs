@@ -6,7 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using ZeroMQPlayground.Shared;
+using ZeroMQPlayground.DynamicData.Shared;
 
 namespace ZeroMQPlayground.DynamicData.Domain
 {
@@ -58,9 +58,7 @@ namespace ZeroMQPlayground.DynamicData.Domain
 
                     var changePrice = Next();
 
-                    publisherSocket
-                        .SendMoreFrame(changePrice.StockId)
-                        .SendFrame(changePrice.Serialize());
+                    publisherSocket.Send(changePrice);
 
                 }
             }
