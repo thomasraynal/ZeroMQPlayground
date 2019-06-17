@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using StructureMap;
 
 namespace ZeroMQPlayground.ZeroMQPatterns.Clone
 {
@@ -20,6 +21,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
         public TimeSpan HearbeatMaxDelay { get; set; }
 
         public List<BrokerDescriptor> BrokerDescriptors { get; set; }
+        public IContainer Container { get; internal set; }
 
         public BrokerDescriptor Next()
         {

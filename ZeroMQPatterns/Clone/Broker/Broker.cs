@@ -31,7 +31,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
         {
             _brokerConfiguration = brokerConfiguration;
             _cancel = new CancellationTokenSource();
-            _uniqueEventIdProvider = new DefaultUniqueEventIdProvider();
+            _uniqueEventIdProvider = _brokerConfiguration.Container.GetInstance<IUniqueEventIdProvider>();
 
             Updates = new List<ISequenceItem<TDto>>();
         }
@@ -100,13 +100,11 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
                 var enveloppe = e.Socket.ReceiveMultipartMessage()
                                   .GetMessageFromPublisher<TDto>();
 
-                var update = new DefaultSequenceItem<TDto>()
-                {
-                    Position = _uniqueEventIdProvider.Next(),
-                    UpdateDto = enveloppe.Message
+                var update = _brokerConfiguration.Container.GetInstance<ISequenceItem<TDto>>();
 
-                };
-                
+                update.Position = _uniqueEventIdProvider.Next();
+                update.UpdateDto = enveloppe.Message;
+
                 Updates.Add(update);
 
                 _publishStateUpdate

@@ -6,6 +6,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
 {
     public interface ISubjectDto
     {
-         String Subject { get; set; }
+        Guid Id { get; set; }
+        String Subject { get; set; }
     }
 }

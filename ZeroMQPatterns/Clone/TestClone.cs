@@ -1,8 +1,10 @@
 ﻿using NetMQ;
+using NetMQ.Monitoring;
 using NetMQ.Sockets;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using NUnit.Framework;
+using StructureMap;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,30 +14,13 @@ using System.Threading.Tasks;
 
 namespace ZeroMQPlayground.ZeroMQPatterns.Clone
 {
-    [TestFixture]
-    public class TestClone
+    public class TestCloneRegistry : Registry
     {
-        //[TearDown]
-        //public void TearDown()
-        //{
-        //    NetMQConfig.Cleanup(false);
-        //}
-
-       use container
-
-        private string sendUpdatesEndpoint1 = "tcp://localhost:8080";
-        private string stateRequestEndpoint1 = "tcp://localhost:8181";
-        private string getUpdatesEndpoint1 = "tcp://localhost:8282";
-        private string brokerHeartbeatEndpoint1 = "tcp://localhost:8383";
-
-        private string sendUpdatesEndpoint2 = "tcp://localhost:8484";
-        private string stateRequestEndpoint2 = "tcp://localhost:8585";
-        private string getUpdatesEndpoint2 = "tcp://localhost:8686";
-        private string brokerHeartbeatEndpoint2 = "tcp://localhost:8787";
-
-        [Test]
-        public async Task TestBrokerDisconnect()
+        public TestCloneRegistry()
         {
+            For<IUniqueEventIdProvider>().Use<DefaultUniqueEventIdProvider>();
+            For<ISequenceItem<MarketStateDto>>().Use<DefaultSequenceItem<MarketStateDto>>();
+
             JsonConvert.DefaultSettings = () =>
             {
                 var settings = new JsonSerializerSettings
@@ -52,31 +37,42 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
                 return settings;
             };
 
-            var broker1 = new Broker<MarketStateDto>(new BrokerConfiguration()
-            {
-                PublishUpdatesEndpoint = getUpdatesEndpoint1,
-                SubscribeToUpdatesEndpoint = sendUpdatesEndpoint1,
-                SendStateEndpoint = stateRequestEndpoint1,
-                HeartbeatEndpoint = brokerHeartbeatEndpoint1
-            });
+        }
+    }
 
-            var broker2 = new Broker<MarketStateDto>(new BrokerConfiguration()
-            {
-                PublishUpdatesEndpoint = getUpdatesEndpoint2,
-                SubscribeToUpdatesEndpoint = sendUpdatesEndpoint2,
-                SendStateEndpoint = stateRequestEndpoint2,
-                HeartbeatEndpoint = brokerHeartbeatEndpoint2
-            });
+    [TestFixture]
+    public class TestClone
+    {
+        
+        [TearDown]
+        public void TearDown()
+        {
+            NetMQConfig.Cleanup(false);
+        }
+        
+        private string sendUpdatesEndpoint1 = "tcp://localhost:8080";
+        private string stateRequestEndpoint1 = "tcp://localhost:8181";
+        private string getUpdatesEndpoint1 = "tcp://localhost:8282";
+        private string brokerHeartbeatEndpoint1 = "tcp://localhost:8383";
 
-            broker1.Start();
-            broker2.Start();
+        private string sendUpdatesEndpoint2 = "tcp://localhost:8484";
+        private string stateRequestEndpoint2 = "tcp://localhost:8585";
+        private string getUpdatesEndpoint2 = "tcp://localhost:8686";
+        private string brokerHeartbeatEndpoint2 = "tcp://localhost:8787";
 
-            var markets = new string[] { "AAPL", "MSFT", "GOOG", "FB" }.Select(ticker =>
-            {
-                var coonfiguration = new ClientConfiguration()
-                {
+        [Test]
+        public async Task TestBrokerDisconnectAndCloneTakeCharge()
+        {
+            var container = new Container(new TestCloneRegistry());
 
-                    BrokerDescriptors = new List<BrokerDescriptor>()
+            var broker1 = ActorFactory.GetBroker<MarketStateDto>
+                (getUpdatesEndpoint1, sendUpdatesEndpoint1, stateRequestEndpoint1, brokerHeartbeatEndpoint1, container);
+
+
+            var broker2 = ActorFactory.GetBroker<MarketStateDto>
+                (getUpdatesEndpoint2, sendUpdatesEndpoint2, stateRequestEndpoint2, brokerHeartbeatEndpoint2, container);
+
+            var brokerDescriptors = new List<BrokerDescriptor>()
                      {
                          new BrokerDescriptor()
                          {
@@ -94,25 +90,20 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
                              PublishUpdateEndpoint = sendUpdatesEndpoint2,
                              SubscribeToUpdatesEndpoint = getUpdatesEndpoint2
                          }
-                     },
+                     };
 
-                    Name = ticker,
-                    HearbeatDelay = TimeSpan.FromMilliseconds(500),
-                    HearbeatMaxDelay = TimeSpan.FromMilliseconds(1000)
 
-                };
-
-                return new Client<MarketStateDto>(coonfiguration);
-
+            var marketsTasks = new string[] { "AAPL", "MSFT", "GOOG", "FB" }.Select(async ticker =>
+            {
+               return await ActorFactory.GetClient<MarketStateDto>(ticker, TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(1000), brokerDescriptors, container);
             }).ToList();
 
-            await Task.WhenAll(markets.Select(async market => await market.Start()));
+            var markets = await Task.WhenAll(marketsTasks);
 
             var msft = markets.First(market => market.Name == "MSFT");
             var goog = markets.First(market => market.Name == "GOOG");
             var fb = markets.First(market => market.Name == "FB");
             var appl = markets.First(market => market.Name == "AAPL");
-
 
             Assert.IsTrue(markets.All(market => market.Broker.Name == "B1"));
 
@@ -133,50 +124,28 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
             fb.Push(MarketStateDto.Random("FB"));
             msft.Push(MarketStateDto.Random("MSFT"));
 
-            await Task.Delay(100);
+            await Task.Delay(1000);
 
             Assert.IsTrue(markets.All(market => market.Updates.Count == 4));
 
+            broker2.Stop();
+
+            foreach(var market in markets)
+            {
+                await market.Stop();
+            }
         }
 
         [Test]
         public async Task TestE2E()
         {
 
-            JsonConvert.DefaultSettings = () =>
-            {
-                var settings = new JsonSerializerSettings
-                {
-                    Formatting = Formatting.Indented,
-                    TypeNameHandling = TypeNameHandling.Objects,
-                    ContractResolver = new CamelCasePropertyNamesContractResolver()
-                };
+            var container = new Container(new TestCloneRegistry());
 
-                settings.Converters.Add(new AbstractConverter<ISequenceItem<MarketStateDto>,
-                                            DefaultSequenceItem<MarketStateDto>>());
+            var broker = ActorFactory.GetBroker<MarketStateDto>
+                (getUpdatesEndpoint1, sendUpdatesEndpoint1, stateRequestEndpoint1, brokerHeartbeatEndpoint1, container);
 
-
-                return settings;
-            };
-
-
-            var broker1 = new Broker<MarketStateDto>(new BrokerConfiguration()
-            {
-                PublishUpdatesEndpoint = getUpdatesEndpoint1,
-                SubscribeToUpdatesEndpoint = sendUpdatesEndpoint1,
-                SendStateEndpoint = stateRequestEndpoint1,
-                HeartbeatEndpoint = brokerHeartbeatEndpoint1
-            });
-
-
-            broker1.Start();
-
-            var markets = new string[] { "AAPL", "MSFT", "GOOG", "FB" }.Select(ticker =>
-             {
-                 var coonfiguration = new ClientConfiguration()
-                 {
-  
-                     BrokerDescriptors = new List<BrokerDescriptor>()
+            var brokerDescriptors = new List<BrokerDescriptor>()
                      {
                          new BrokerDescriptor()
                          {
@@ -186,20 +155,16 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
                              PublishUpdateEndpoint = sendUpdatesEndpoint1,
                              SubscribeToUpdatesEndpoint = getUpdatesEndpoint1
                          }
-                     },
-
-                     Name = ticker,
-                     HearbeatDelay = TimeSpan.FromMilliseconds(250),
-                     HearbeatMaxDelay = TimeSpan.FromSeconds(1)
-                
-                 };
-
-                 return new Client<MarketStateDto>(coonfiguration);
-
-             }).ToList();
+                     };
 
 
-            await Task.WhenAll(markets.Select(async market => await market.Start()));
+            var marketsTasks = new string[] { "AAPL", "MSFT", "GOOG", "FB" }.Select(async ticker =>
+            {
+                return await ActorFactory.GetClient<MarketStateDto>(
+                    ticker, TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(1000), brokerDescriptors, container);
+            }).ToList();
+
+            var markets = await Task.WhenAll(marketsTasks);
 
             var msft = markets.First(market => market.Name == "MSFT");
             var goog = markets.First(market => market.Name == "GOOG");
@@ -210,7 +175,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
             //should not have to wait...
             await Task.Delay(1000);
 
-            Assert.IsTrue(broker1.Updates.Count == 1);
+            Assert.IsTrue(broker.Updates.Count == 1);
 
             Assert.IsTrue(markets.All(
                 market => market.Updates.Count == 1 &&
@@ -221,7 +186,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
 
             await Task.Delay(100);
 
-            Assert.IsTrue(broker1.Updates.Count == 2);
+            Assert.IsTrue(broker.Updates.Count == 2);
 
             Assert.IsTrue(markets.All(
                 market => market.Updates.Count == 2 &&
@@ -258,6 +223,15 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
             await amz.Start();
 
             Assert.IsTrue(amz.Updates.Count == 6);
+
+            broker.Stop();
+
+            await amz.Stop();
+
+            foreach (var market in markets)
+            {
+                await market.Stop();
+            }
         }
 
     }

@@ -6,9 +6,15 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
 {
     public class MarketStateDto : ISubjectDto
     {
+        public MarketStateDto()
+        {
+            Id = Guid.NewGuid();
+        }
+
         public String Currency { get; set; }
         public String Subject  { get; set; }
         public double Value { get; set; }
+        public Guid Id { get; set; }
 
         public static MarketStateDto Random(string asset)
         {

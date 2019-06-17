@@ -16,7 +16,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
     {
         private readonly ClientConfiguration _configuration;
         private BrokerDescriptor _currentBroker;
-        private CancellationTokenSource _cancel;
+       
         private ConfiguredTaskAwaitable _heartbeatProc;
         private ConfiguredTaskAwaitable _workProc;
         private IDisposable _disconnected;
@@ -25,6 +25,11 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
         private PublisherSocket _publishMarketUpdates;
 
         private readonly BehaviorSubject<bool> _isConnected;
+
+        private CancellationTokenSource _cancel;
+        private CancellationTokenSource _cancelUpdatePublisher;
+
+        private ManualResetEventSlim _resetEvent = new ManualResetEventSlim(false);
 
         public SortedList<long, ISequenceItem<TDto>> Updates { get; set; }
         public Guid Id { get; }
@@ -44,6 +49,7 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
         {
             _configuration = configuration;
             _cancel = new CancellationTokenSource();
+            _cancelUpdatePublisher = new CancellationTokenSource();
 
             Updates = new SortedList<long, ISequenceItem<TDto>>();
 
@@ -65,6 +71,12 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
 
         public async Task Start()
         {
+            _publishMarketUpdates = new PublisherSocket();
+  
+            foreach (var broker in _configuration.BrokerDescriptors)
+            {
+                _publishMarketUpdates.Connect(broker.PublishUpdateEndpoint);
+            }
 
             _disconnected = IsConnected
                 .Buffer(2, 1)
@@ -141,18 +153,17 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
             _getMarketUpdates.SubscribeToAnyTopic();
             _getMarketUpdates.Connect(_currentBroker.SubscribeToUpdatesEndpoint);
 
-            _publishMarketUpdates = new PublisherSocket();
-            _publishMarketUpdates.Connect(_currentBroker.PublishUpdateEndpoint);
-
             _heartbeatProc = Task.Run(() => DoHeartbeat(_configuration.HearbeatDelay, _configuration.HearbeatMaxDelay), _cancel.Token).ConfigureAwait(false);
+            _workProc = Task.Run(ReceiveUpdates, _cancel.Token).ConfigureAwait(false);
 
             await Synchronize();
 
-            _workProc = Task.Run(ReceiveUpdates, _cancel.Token).ConfigureAwait(false);
         }
 
         private void ReceiveUpdates()
         {
+            _resetEvent.Wait();
+
             while (!_cancel.IsCancellationRequested)
             {
                 var enveloppe = _getMarketUpdates.ReceiveMultipartMessage()
@@ -170,10 +181,14 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
             var enveloppe = _getMarketState.ReceiveMultipartMessage()
                                            .GetMessageFromPublisher<StateReply<TDto>>();
 
+            Updates.Clear();
+
             foreach (var update in enveloppe.Message.Updates)
             {
                 Updates.Add(update.Position, update);
             }
+
+            _resetEvent.Set();
 
             return Task.CompletedTask;
         }
@@ -183,6 +198,9 @@ namespace ZeroMQPlayground.ZeroMQPatterns.Clone
 
             _isConnected.OnCompleted();
             _disconnected.Dispose();
+
+            _publishMarketUpdates.Close();
+            _publishMarketUpdates.Dispose();
 
             await Cleanup();
         }
