@@ -1,9 +1,14 @@
-﻿using NUnit.Framework;
+﻿using NetMQ;
+using NetMQ.Sockets;
+using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using ZeroMQPlayground.DynamicData.Domain;
 using ZeroMQPlayground.DynamicData.Shared;
+using ZeroMQPlayground.Shared;
 
 namespace ZeroMQPlayground.DynamicData
 {
@@ -29,6 +34,40 @@ namespace ZeroMQPlayground.DynamicData
             };
 
             return price;
+        }
+
+        [Test]
+        public async Task TestGenerateEvent()
+        {
+            var toPublishersEndpoint = "tcp://localhost:8080";
+            var toSubscribersEndpoint = "tcp://localhost:8181";
+
+            var cancel = new CancellationTokenSource();
+
+            var router = new Broker(toPublishersEndpoint, toSubscribersEndpoint, cancel.Token);
+            var market = new Market(toPublishersEndpoint, cancel.Token);
+
+
+
+
+
+            //using (var sub = new SubscriberSocket())
+            //{
+            //    sub.Connect(toSubscribersEndpoint);
+            //    sub.SubscribeToAnyTopic();
+
+            //    while (!cancel.IsCancellationRequested)
+            //    {
+            //        var change = sub.ReceiveMultipartMessage()
+            //             .GetMessageFromProducer<ChangeStockPrice>();
+
+
+            //    }
+
+            //}
+
+            await Task.Delay(2000);
+
         }
 
         [Test]

@@ -6,9 +6,9 @@ using DynamicData;
 
 namespace ZeroMQPlayground.DynamicData
 {
-    public interface IClient<TKey,TAggregate> where TAggregate : IAggregate<TKey>
+    public interface IDynamicCache<TKey,TAggregate> where TAggregate : IAggregate<TKey>
     {
         Task Connect(string endpoint);
-        ISourceCache<TKey,TAggregate> Cache { get; }
+        IObservableCache<TAggregate,TKey> Cache { get; }
     }
 }
