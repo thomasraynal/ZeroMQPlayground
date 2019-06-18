@@ -16,13 +16,15 @@ namespace ZeroMQPlayground.DynamicData.Domain
         private static readonly string[] CcyPairs = { "EUR/USD", "EUR/JPY", "EUR/GBP", "EUR/CDN" };
 
         private string _routerEndpoint;
+        private string _name;
         private CancellationToken _cancel;
         private ConfiguredTaskAwaitable _workProc;
         private readonly Random _rand = new Random();
 
-        public Market(String routerEndpoint, CancellationToken token)
+        public Market(String name, String routerEndpoint, CancellationToken token)
         {
             _routerEndpoint = routerEndpoint;
+            _name = name;
             _cancel = token;
             _workProc = Task.Run(Work, _cancel).ConfigureAwait(false);
         }
@@ -39,7 +41,8 @@ namespace ZeroMQPlayground.DynamicData.Domain
                 bid: mid - spread,
                 mid: mid,
                 spread: spread,
-                stockId: topic
+                stockId: topic,
+                market: _name
             );
 
             price.Validate();

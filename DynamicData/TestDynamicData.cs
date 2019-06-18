@@ -50,7 +50,8 @@ namespace ZeroMQPlayground.DynamicData
             var cancel = new CancellationTokenSource();
 
             var router = new Broker(toPublishersEndpoint, toSubscribersEndpoint, stateOfTheWorldEndpoint, heartbeatEndpoint);
-            var market = new Market(toPublishersEndpoint, cancel.Token);
+            var market1 = new Market("FxConnect", toPublishersEndpoint, cancel.Token);
+            var market2 = new Market("Harmony", toPublishersEndpoint, cancel.Token);
 
             //create an event cache
             await Task.Delay(2000);
@@ -74,8 +75,16 @@ namespace ZeroMQPlayground.DynamicData
 
             await Task.Delay(2000);
 
-            Assert.AreEqual(router.Cache.Values.Aggregate((l1, l2) => l1.Concat(l2).ToList()).Count(), counter);
-            Assert.AreEqual(cache.Items.Select(item=> item.AppliedEvents).Aggregate((l1, l2) => l1.Concat(l2)).Count(), counter);
+            Assert.AreEqual(router.Cache.Values.SelectMany(list=> list).Count(), counter);
+            Assert.AreEqual(cache.Items.SelectMany(item=> item.AppliedEvents).Count(), counter);
+
+            //fxconnext & harmony
+            Assert.AreEqual(2, cache.Items
+                                    .SelectMany(item => item.AppliedEvents)
+                                    .Cast<ChangeCcyPairPrice>()
+                                    .Select(ev => ev.Market)
+                                    .Distinct()
+                                    .Count());
 
         }
 
