@@ -53,7 +53,7 @@ namespace ZeroMQPlayground.DynamicData.Domain
 
                 while (!_cancel.IsCancellationRequested)
                 {
-                    //let the publisher time to connect...
+                    //let the subscriber time to connect...
                     Thread.Sleep(750);
 
                     var changePrice = Next();

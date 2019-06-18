@@ -39,7 +39,7 @@ namespace ZeroMQPlayground.DynamicData
         }
 
         [Test]
-        public async Task TestGenerateEvent()
+        public async Task TestSubscribeToEventFeed()
         {
             JsonConvert.DefaultSettings = () =>
             {
@@ -57,11 +57,20 @@ namespace ZeroMQPlayground.DynamicData
 
             var toPublishersEndpoint = "tcp://localhost:8080";
             var toSubscribersEndpoint = "tcp://localhost:8181";
+            var heartbeatEndpoint = "tcp://localhost:8282";
+            var stateOfTheWorldEndpoint = "tcp://localhost:8383";
 
             var cancel = new CancellationTokenSource();
 
-            var router = new Broker(toPublishersEndpoint, toSubscribersEndpoint, cancel.Token);
+            var router = new Broker(toPublishersEndpoint, toSubscribersEndpoint, stateOfTheWorldEndpoint, heartbeatEndpoint);
             var market = new Market(toPublishersEndpoint, cancel.Token);
+
+            //create an event cache
+            await Task.Delay(2000);
+
+            Assert.Greater(router.Cache.Count(), 0);
+
+            var cacheConfiguration = new DynamicCacheConfiguration(toSubscribersEndpoint, stateOfTheWorldEndpoint, heartbeatEndpoint);
 
             var cache = new DynamicCache<string, CurrencyPair>();
 
@@ -74,11 +83,12 @@ namespace ZeroMQPlayground.DynamicData
                                    counter++;
                                });
 
-            await cache.Connect(toSubscribersEndpoint, cancel.Token);
+            await cache.Connect(cacheConfiguration);
 
             await Task.Delay(2000);
 
-            Assert.Greater(counter, 0);
+            Assert.AreEqual(router.Cache.Values.Aggregate((l1, l2) => l1.Concat(l2).ToList()).Count(), counter);
+            Assert.AreEqual(cache.Items.Select(item=> item.AppliedEvents).Aggregate((l1, l2) => l1.Concat(l2)).Count(), counter);
 
         }
 

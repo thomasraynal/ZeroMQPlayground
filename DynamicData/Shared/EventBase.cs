@@ -8,18 +8,20 @@ namespace ZeroMQPlayground.DynamicData.Shared
     {
         protected EventBase()
         {
-            EventDateTime = DateTime.Now;
+            Timestamp = DateTime.Now;
+            EventType = this.GetType();
         }
 
         protected EventBase(TKey aggregateId) : this()
         {
             AggregateId = aggregateId;
-
         }
 
         public TKey AggregateId { get; set; }
 
-        public DateTime EventDateTime { get; set; }
+        public DateTime Timestamp { get; set; }
+
+        public Type EventType { get; set; }
 
         public abstract void Apply(TAgreggate aggregate);
 

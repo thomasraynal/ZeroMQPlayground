@@ -14,19 +14,28 @@ namespace ZeroMQPlayground.DynamicData.Shared
     public class DynamicCache<TKey, TAggregate> : IDynamicCache<TKey, TAggregate>, IDisposable
         where TAggregate : IAggregate<TKey>, new()
     {
-        private CancellationToken _cancel;
-        private string _endpoint;
+        private DynamicCacheConfiguration _configuration;
+        private CancellationTokenSource _cancel;
         private Thread _workProc;
 
-        private BehaviorSubject<bool> _connectionStatus;
+        private BehaviorSubject<bool> _isConnected;
         private BehaviorSubject<bool> _isCaughtUp;
         private BehaviorSubject<bool> _isStale;
+        private Thread _heartBeatProc;
 
         private SourceCache<TAggregate, TKey> _sourceCache { get; }
 
         public DynamicCache()
         {
             _sourceCache = new SourceCache<TAggregate, TKey>(selector => selector.Id);
+        }
+
+        public IObservable<bool> IsConnected
+        {
+            get
+            {
+                return _isConnected.AsObservable();
+            }
         }
 
         public IObservable<bool> IsCaughtUp
@@ -45,10 +54,15 @@ namespace ZeroMQPlayground.DynamicData.Shared
             }
         }
 
-        public Task Connect(string endpoint, CancellationToken cancel)
+        //todo: threadsafe?
+        public IEnumerable<TAggregate> Items => _sourceCache.Items;
+
+        public async Task Connect(DynamicCacheConfiguration configuration)
         {
-            _cancel = cancel;
-            _endpoint = endpoint;
+
+            _configuration = configuration;
+
+            _cancel = new CancellationTokenSource();
 
             _isStale = new BehaviorSubject<bool>(true);
             _isCaughtUp = new BehaviorSubject<bool>(false);
@@ -56,38 +70,88 @@ namespace ZeroMQPlayground.DynamicData.Shared
             _workProc = new Thread(Work);
             _workProc.Start();
 
+            //todo: handle disconnect, reconnect and stale state
+
+            _heartBeatProc = new Thread(Heartbeat);
+            _heartBeatProc.Start();
+
+            await GetStateOfTheWorld();
+
+        }
+
+        private Task GetStateOfTheWorld()
+        {
+            using (var dealer = new DealerSocket())
+            {
+                dealer.Connect(_configuration.StateOfTheWorldEndpoint);
+                dealer.SendFrame(StateRequest.Default.Serialize());
+
+                //parameterized
+                var hasResponse = dealer.TryReceiveFrameBytes(TimeSpan.FromSeconds(5), out var responseBytes);
+
+                if (!hasResponse) throw new Exception("unable to reach broker");
+
+                //handle proper deserialization....
+                var stateOfTheWorld = responseBytes.Deserialize<StateReply>();
+
+                foreach(var bytes in stateOfTheWorld.Events)
+                {
+                    var @event = bytes.Deserialize<MessageEnveloppe<IEvent<TKey, TAggregate>>>();
+
+                    OnEventReceived(@event.Message);
+                }
+            }
+
             return Task.CompletedTask;
+        }
+
+        private void Heartbeat()
+        {
+
         }
 
         private void Work()
         {
             using (var sub = new SubscriberSocket())
             {
+               
+                sub.Options.ReceiveHighWatermark = _configuration.ZmqHighWatermark;
+
                 //todo : handle subcription filter via lambda
                 sub.SubscribeToAnyTopic();
-                sub.Connect(_endpoint);
+                sub.Connect(_configuration.SubscriptionEndpoint);
 
                 while (!_cancel.IsCancellationRequested)
                 {
                     //todo : define platform agnostic protocol
                     var @event = sub.Receive<IEvent<TKey, TAggregate>>();
 
-                    var aggregate = _sourceCache.Lookup(@event.Message.AggregateId);
-
-                    if (!aggregate.HasValue)
-                    {
-                        var @new = new TAggregate();
-                        @new.Id = @event.Message.AggregateId;
-                        @new.Apply(@event.Message);
-
-                        _sourceCache.AddOrUpdate(@new);
-                    }
-                    else
-                    {
-                        aggregate.Value.Apply(@event.Message);
-                    }
+                    OnEventReceived(@event.Message);
 
                 }
+            }
+        }
+
+        private void OnEventReceived(IEvent<TKey, TAggregate> @event)
+        {
+            var aggregate = _sourceCache.Lookup(@event.AggregateId);
+
+            if (!aggregate.HasValue)
+            {
+                var @new = new TAggregate
+                {
+                    Id = @event.AggregateId
+                };
+
+                @new.Apply(@event);
+
+                _sourceCache.AddOrUpdate(@new);
+            }
+            else
+            {
+                aggregate.Value.Apply(@event);
+
+                _sourceCache.AddOrUpdate(aggregate.Value);
             }
         }
 

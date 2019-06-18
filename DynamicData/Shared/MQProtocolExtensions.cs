@@ -30,7 +30,7 @@ namespace ZeroMQPlayground.DynamicData.Shared
 
             //refacto - key serializable
             publisherSocket
-                        .SendMoreFrame(enveloppe.ToString())
+                        .SendMoreFrame(enveloppe.Topic.SerializeString())
                         .SendFrame(enveloppe.Serialize());
         }
 

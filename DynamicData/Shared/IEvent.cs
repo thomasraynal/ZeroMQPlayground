@@ -6,7 +6,7 @@ namespace ZeroMQPlayground.DynamicData.Shared
 {
     public interface IEvent
     {
-
+        Type EventType { get; }
         bool CanApply(Type type);
         void Apply(IAggregate aggregate);
     }
