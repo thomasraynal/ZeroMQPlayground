@@ -5,9 +5,10 @@ using ZeroMQPlayground.DynamicData.Shared;
 
 namespace ZeroMQPlayground.DynamicData.Domain
 {
-    public class ChangeStockState : CommandBase<String,CurrencyPair>
+    public class ChangeCcyPairState : CommandBase<String,CurrencyPair>
     {
-        public StockState State { get; set; }
+        [RoutingPosition(1)]
+        public CcyPairState State { get; set; }
 
         public override void Apply(CurrencyPair aggregate)
         {

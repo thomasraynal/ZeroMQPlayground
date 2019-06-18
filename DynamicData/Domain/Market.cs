@@ -27,20 +27,22 @@ namespace ZeroMQPlayground.DynamicData.Domain
             _workProc = Task.Run(Work, _cancel).ConfigureAwait(false);
         }
 
-        private ChangeStockPrice Next()
+        private ChangeCcyPairPrice Next()
         {
             var mid = _rand.NextDouble() * 10;
             var spread = _rand.NextDouble() * 2;
 
             var topic = CcyPairs[_rand.Next(0, 3)];
 
-            var price = new ChangeStockPrice(
+            var price = new ChangeCcyPairPrice(
                 ask: mid + spread,
                 bid: mid - spread,
                 mid: mid,
                 spread: spread,
                 stockId: topic
             );
+
+            price.Validate();
 
             return price;
         }

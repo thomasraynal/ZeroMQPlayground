@@ -15,10 +15,10 @@ namespace ZeroMQPlayground.DynamicData.Shared
     {
         public StateReply()
         {
-            Events = new List<byte[]>();
+            Events = new List<TransportMessage>();
         }
 
         public string Topic { get; set; }
-        public List<byte[]> Events { get; set; }
+        public List<TransportMessage> Events { get; set; }
     }
 }

@@ -26,7 +26,9 @@ namespace ZeroMQPlayground.DynamicData.Domain
         private Proxy _proxy;
         private ResponseSocket _heartbeat;
         private RouterSocket _stateRequest;
-        private readonly Dictionary<string, List<byte[]>> _cache;
+
+        //todo: cross platform compliance....
+        private readonly Dictionary<string, List<TransportMessage>> _cache;
 
         public Broker(string toPublisherEndpoint, string toSubscribersEndpoint, string stateOftheWorldEndpoint, string heartbeatEndpoint)
         {
@@ -38,7 +40,7 @@ namespace ZeroMQPlayground.DynamicData.Domain
             _cancel = new CancellationTokenSource();
 
             //todo: threadsafe when state request
-            _cache = new Dictionary<string, List<byte[]>>();
+            _cache = new Dictionary<string, List<TransportMessage>>();
 
             //todo: proper cleanup - close sockets
             _workProc = Task.Run(Work, _cancel.Token).ConfigureAwait(false);
@@ -61,7 +63,7 @@ namespace ZeroMQPlayground.DynamicData.Domain
 
         }
 
-        public Dictionary<string, List<byte[]>> Cache => _cache;
+        public Dictionary<string, List<TransportMessage>> Cache => _cache;
 
         public void HandleCache()
         {
@@ -75,11 +77,11 @@ namespace ZeroMQPlayground.DynamicData.Domain
                 {
                     var message = cache.ReceiveMultipartMessage();
                     var topic = message[0].Buffer.DeserializeString();
-                    var payload = message[1].Buffer;
+                    var payload = message[1].Buffer.Deserialize<TransportMessage>();
 
                     if (!_cache.ContainsKey(topic))
                     {
-                        _cache[topic] = new List<byte[]>();
+                        _cache[topic] = new List<TransportMessage>();
                     }
 
                     _cache[topic].Add(payload);

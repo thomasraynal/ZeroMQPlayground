@@ -31,7 +31,7 @@ namespace ZeroMQPlayground.DynamicData
                 Bid = mid - spread,
                 Mid = mid,
                 Spread = spread,
-                State = StockState.Open,
+                State = CcyPairState.Active,
                 Id =  CcyPairs[_rand.Next(0, 3)]
             };
 
@@ -41,19 +41,6 @@ namespace ZeroMQPlayground.DynamicData
         [Test]
         public async Task TestSubscribeToEventFeed()
         {
-            JsonConvert.DefaultSettings = () =>
-            {
-                var settings = new JsonSerializerSettings
-                {
-                    Formatting = Formatting.Indented,
-                    TypeNameHandling = TypeNameHandling.Objects,
-                    ContractResolver = new CamelCasePropertyNamesContractResolver()
-                };
-
-                settings.Converters.Add(new AbstractConverter<IEvent<string, CurrencyPair>, ChangeStockPrice>());
-
-                return settings;
-            };
 
             var toPublishersEndpoint = "tcp://localhost:8080";
             var toSubscribersEndpoint = "tcp://localhost:8181";
@@ -93,28 +80,44 @@ namespace ZeroMQPlayground.DynamicData
         }
 
         [Test]
+        public void TestEventSerialization()
+        {
+            var @event = new ChangeCcyPairState()
+            {
+                AggregateId = "test",
+                State = CcyPairState.Passive
+            };
+
+            var serializer = new EventSerializer();
+            var subject = serializer.Serialize(@event);
+
+            Assert.AreEqual("test.Passive", subject);
+
+        }
+
+        [Test]
         public void TestEventApply()
         {
             var stock = Next();
 
-            var changeStateClose = new ChangeStockState()
+            var changeStateClose = new ChangeCcyPairState()
             {
-                State = StockState.Close
+                State = CcyPairState.Passive
             };
 
             stock.Apply(changeStateClose);
 
-            Assert.AreEqual(StockState.Close, stock.State);
+            Assert.AreEqual(CcyPairState.Passive, stock.State);
             Assert.AreEqual(1, stock.AppliedEvents.Count());
 
-            var changeStateOpen = new ChangeStockState()
+            var changeStateOpen = new ChangeCcyPairState()
             {
-                State = StockState.Open
+                State = CcyPairState.Active
             };
 
             stock.Apply(changeStateOpen as IEvent);
 
-            Assert.AreEqual(StockState.Open, stock.State);
+            Assert.AreEqual(CcyPairState.Active, stock.State);
             Assert.AreEqual(2, stock.AppliedEvents.Count());
         }
 

@@ -4,9 +4,7 @@ using System.Text;
 
 namespace ZeroMQPlayground.DynamicData.Domain
 {
-    public enum CcyPairState
+    public class SubscriptionFilter
     {
-        Active,
-        Passive
     }
 }

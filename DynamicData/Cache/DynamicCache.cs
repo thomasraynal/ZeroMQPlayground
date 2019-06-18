@@ -71,7 +71,6 @@ namespace ZeroMQPlayground.DynamicData.Shared
             _workProc.Start();
 
             //todo: handle disconnect, reconnect and stale state
-
             _heartBeatProc = new Thread(Heartbeat);
             _heartBeatProc.Start();
 
@@ -87,18 +86,18 @@ namespace ZeroMQPlayground.DynamicData.Shared
                 dealer.SendFrame(StateRequest.Default.Serialize());
 
                 //parameterized
-                var hasResponse = dealer.TryReceiveFrameBytes(TimeSpan.FromSeconds(5), out var responseBytes);
+                var hasResponse = dealer.TryReceiveFrameBytes(_configuration.HeartbeatTimeout, out var responseBytes);
 
                 if (!hasResponse) throw new Exception("unable to reach broker");
 
                 //handle proper deserialization....
                 var stateOfTheWorld = responseBytes.Deserialize<StateReply>();
 
-                foreach(var bytes in stateOfTheWorld.Events)
+                foreach (var message in stateOfTheWorld.Events)
                 {
-                    var @event = bytes.Deserialize<MessageEnveloppe<IEvent<TKey, TAggregate>>>();
+                    var @event = (IEvent<TKey, TAggregate>)message.MessageBytes.Deserialize(message.MessageType);
 
-                    OnEventReceived(@event.Message);
+                    OnEventReceived(@event);
                 }
             }
 
@@ -126,7 +125,7 @@ namespace ZeroMQPlayground.DynamicData.Shared
                     //todo : define platform agnostic protocol
                     var @event = sub.Receive<IEvent<TKey, TAggregate>>();
 
-                    OnEventReceived(@event.Message);
+                    OnEventReceived(@event);
 
                 }
             }

@@ -8,7 +8,7 @@ namespace ZeroMQPlayground.DynamicData.Domain
     public class CurrencyPair : AggregateBase<string>
     {
 
-        public StockState State { get; set; }
+        public CcyPairState State { get; set; }
 
         public double Ask { get; set; }
         public double Bid { get; set; }

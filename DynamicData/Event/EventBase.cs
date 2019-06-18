@@ -17,11 +17,14 @@ namespace ZeroMQPlayground.DynamicData.Shared
             AggregateId = aggregateId;
         }
 
+        [RoutingPosition(0)]
         public TKey AggregateId { get; set; }
 
         public DateTime Timestamp { get; set; }
 
-        public Type EventType { get; set; }
+        public Type EventType { get ; set; }
+
+        public string Subject { get;  set; }
 
         public abstract void Apply(TAgreggate aggregate);
 
@@ -33,6 +36,12 @@ namespace ZeroMQPlayground.DynamicData.Shared
         public bool CanApply(Type type)
         {
             return type == typeof(TAgreggate);
+        }
+
+        public void Validate()
+        {
+            var serializer = new EventSerializer();
+            Subject = serializer.Serialize(this);
         }
     }
 }

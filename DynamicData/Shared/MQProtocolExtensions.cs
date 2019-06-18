@@ -3,16 +3,10 @@ using NetMQ.Sockets;
 using System;
 using System.Collections.Generic;
 using System.Text;
-using ZeroMQPlayground.Shared;
+
 
 namespace ZeroMQPlayground.DynamicData.Shared
 {
-    public class MessageEnveloppe<T>
-    {
-        public string Topic { get; set; }
-        public T Message { get; set; }
-        public Type MessageType { get; set; }
-    }
 
     public static class MQProtocolExtensions
     {
@@ -20,10 +14,11 @@ namespace ZeroMQPlayground.DynamicData.Shared
         public static void Send<TKey, TAgreggate>(this PublisherSocket publisherSocket, IEvent<TKey, TAgreggate> @event)
            where TAgreggate : IAggregate<TKey>
         {
-            //refacto - key serializable
-            var enveloppe = new MessageEnveloppe<IEvent<TKey, TAgreggate>>()
+            //todo - key serializable
+            //todo - inject serializer
+            var enveloppe = new TransportMessage()
             {
-                Message = @event,
+                MessageBytes = @event.Serialize(),
                 Topic = @event.AggregateId.ToString(),
                 MessageType = @event.GetType()
             };
@@ -34,12 +29,12 @@ namespace ZeroMQPlayground.DynamicData.Shared
                         .SendFrame(enveloppe.Serialize());
         }
 
-        public static MessageEnveloppe<T> Receive<T>(this SubscriberSocket publisherSocket)
+        public static T Receive<T>(this SubscriberSocket publisherSocket)
         {
             var message = publisherSocket.ReceiveMultipartMessage();
-            var enveloppe = message[1].Buffer.Deserialize<MessageEnveloppe<T>>();
+            var enveloppe = message[1].Buffer.Deserialize<TransportMessage>();
 
-            return enveloppe;
+            return (T)enveloppe.MessageBytes.Deserialize(enveloppe.MessageType);
         }
     }
 }
