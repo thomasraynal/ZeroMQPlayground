@@ -21,7 +21,7 @@ namespace ZeroMQPlayground.DynamicData.Domain
         public double Mid { get; set; }
         public double Spread { get; set; }
 
-        [RoutingPosition(1)]
+        [RoutingPosition(0)]
         public string Market { get; set; }
 
         public override void Apply(CurrencyPair aggregate)

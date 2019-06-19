@@ -10,45 +10,49 @@ namespace ZeroMQPlayground.DynamicData.Shared
 
     public static class MQProtocolExtensions
     {
+        //public static void Send<TKey, TAgreggate>(this PublisherSocket publisherSocket, IEvent<TKey, TAgreggate> @event)
+        //   where TAgreggate : IAggregate<TKey>
+        //{
 
-        public static void Send<TKey, TAgreggate>(this PublisherSocket publisherSocket, IEvent<TKey, TAgreggate> @event)
-           where TAgreggate : IAggregate<TKey>
-        {
+        //    //public TransportMessage Deserialize(ISerializer serializer)
+        //    //{
+        //    //    var message = Message.Deserialize<TransportMessage>();
+        //    //    message.Version = EventId.Version;
+        //    //    return message;
+        //    //}
 
+           
+        //    //todo - inject serializer
+        //    var enveloppe = new TransportMessage()
+        //    {
+        //        MessageBytes = @event.Serialize(),
+        //        Subject = @event.Subject,
+        //        MessageType = @event.GetType()
+        //    };
 
-            @event.Validate();
+        //    //refacto - key serializable
+        //    publisherSocket
+        //                .SendMoreFrame(enveloppe.Subject)
+        //                .SendFrame(enveloppe.Serialize());
+        //}
 
-            //todo - inject serializer
-            var enveloppe = new TransportMessage()
-            {
-                MessageBytes = @event.Serialize(),
-                Subject = @event.Subject,
-                MessageType = @event.GetType()
-            };
+        //public static bool TryReceive<T>(this SubscriberSocket publisherSocket, TimeSpan timeout, out T response)
+        //{
+        //    NetMQMessage message = null;
+        //    var hasMessage = publisherSocket.TryReceiveMultipartMessage(timeout, ref message);
 
-            //refacto - key serializable
-            publisherSocket
-                        .SendMoreFrame(enveloppe.Subject.SerializeString())
-                        .SendFrame(enveloppe.Serialize());
-        }
+        //    if (hasMessage)
+        //    {
+        //        var enveloppe = message[1].Buffer.Deserialize<TransportMessage>();
+        //        response = (T)enveloppe.MessageBytes.Deserialize(enveloppe.MessageType);
+        //    }
+        //    else
+        //    {
+        //        response = default;
+        //    }
 
-        public static bool TryReceive<T>(this SubscriberSocket publisherSocket, TimeSpan timeout, out T response)
-        {
-            NetMQMessage message = null;
-            var hasMessage = publisherSocket.TryReceiveMultipartMessage(timeout, ref message);
+        //    return hasMessage;
 
-            if (hasMessage)
-            {
-                var enveloppe = message[1].Buffer.Deserialize<TransportMessage>();
-                response = (T)enveloppe.MessageBytes.Deserialize(enveloppe.MessageType);
-            }
-            else
-            {
-                response = default;
-            }
-
-            return hasMessage;
-
-        }
+        //}
     }
 }

@@ -22,13 +22,17 @@ namespace ZeroMQPlayground.DynamicData.Shared
 
         private BehaviorSubject<DynamicCacheState> _state;
         private SubscriberSocket _cacheUpdateSocket;
+        private ISerializer _serializer;
+        private IEventSerializer _eventSerializer;
 
         private SourceCache<TAggregate, TKey> _sourceCache { get; }
 
-        public DynamicCache(DynamicCacheConfiguration configuration)
+        public DynamicCache(DynamicCacheConfiguration configuration, ISerializer serializer, IEventSerializer eventSerializer)
         {
             Id = Guid.NewGuid();
 
+            _eventSerializer = eventSerializer;
+            _serializer = serializer;
             _configuration = configuration;
             _sourceCache = new SourceCache<TAggregate, TKey>(selector => selector.Id);
             _cancel = new CancellationTokenSource();
@@ -53,7 +57,6 @@ namespace ZeroMQPlayground.DynamicData.Shared
 
         private Task GetStateOfTheWorld()
         {
-            //req resp?
             using (var dealer = new DealerSocket())
             {
                 var request = new StateRequest()
@@ -61,21 +64,20 @@ namespace ZeroMQPlayground.DynamicData.Shared
                     Subject = _configuration.Subject,
                 };
 
-                dealer.Connect(_configuration.StateOfTheWorldEndpoint);
-                dealer.SendFrame(request.Serialize());
+                var requestBytes = _serializer.Serialize(request);
 
-                //parameterized
+                dealer.Connect(_configuration.StateOfTheWorldEndpoint);
+                dealer.SendFrame(requestBytes);
+
                 var hasResponse = dealer.TryReceiveFrameBytes(_configuration.HeartbeatTimeout, out var responseBytes);
 
                 if (!hasResponse) throw new Exception("unable to reach broker");
 
-                //handle proper deserialization....
-                var stateOfTheWorld = responseBytes.Deserialize<StateReply>();
+                var stateOfTheWorld = _serializer.Deserialize<StateReply>(responseBytes);
 
                 foreach (var message in stateOfTheWorld.Events)
                 {
-                    var @event = (IEvent<TKey, TAggregate>)message.MessageBytes.Deserialize(message.MessageType);
-
+                    var @event = _eventSerializer.ToEvent<TKey, TAggregate>(message);
                     OnEventReceived(@event);
                 }
             }
@@ -89,7 +91,10 @@ namespace ZeroMQPlayground.DynamicData.Shared
             {
                 using (var heartbeat = new RequestSocket(_configuration.HearbeatEndpoint))
                 {
-                    heartbeat.SendFrame(Heartbeat.Query.Serialize());
+                    var payload = _serializer.Serialize(Heartbeat.Query); 
+
+                    heartbeat.SendFrame(payload);
+
                     var response = heartbeat.TryReceiveFrameBytes(_configuration.HeartbeatDelay, out var responseBytes);
 
                     if (_cancel.IsCancellationRequested) return;
@@ -98,9 +103,9 @@ namespace ZeroMQPlayground.DynamicData.Shared
 
                     switch (currentState)
                     {
-                        //raise only if previous state is disconnected
+                        //raise only if previous state is disconnected or staled
                         case DynamicCacheState.Connected:
-                            if(_state.Value == DynamicCacheState.Disconnected)
+                            if(_state.Value == DynamicCacheState.Disconnected || _state.Value == DynamicCacheState.Staled)
                                 _state.OnNext(currentState);
                             break;
                         //raise only if previous state is connected or staled
@@ -129,12 +134,17 @@ namespace ZeroMQPlayground.DynamicData.Shared
 
                 while (!_cancel.IsCancellationRequested)
                 {
-                    var hasMessage = _cacheUpdateSocket.TryReceive(_configuration.IsStaleTimeout, out IEvent<TKey, TAggregate> @event);
+
+                    NetMQMessage message = null;
+
+                    var hasMessage = _cacheUpdateSocket.TryReceiveMultipartMessage(_configuration.IsStaleTimeout, ref message);
 
                     if (_cancel.IsCancellationRequested) return;
 
                     if (hasMessage)
                     {
+                        var transportMessage = _serializer.Deserialize<TransportMessage>(message[1].Buffer);
+                        var @event = _eventSerializer.ToEvent<TKey, TAggregate>(transportMessage);
                         OnEventReceived(@event);
                     }
                     else

@@ -2,6 +2,7 @@
 using NetMQ.Sockets;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
@@ -14,7 +15,7 @@ namespace ZeroMQPlayground.DynamicData.Domain
     public class Market : IActor
     {
 
-        private static readonly string[] CcyPairs = { "EUR/USD", "EUR/JPY", "EUR/GBP", "EUR/CDN" };
+        private static readonly string[] CcyPairs = { "EUR/USD", "EUR/GBP" };
 
         private string _routerEndpoint;
         private string _name;
@@ -24,24 +25,29 @@ namespace ZeroMQPlayground.DynamicData.Domain
 
         public Guid Id { get; }
 
+        private ISerializer _serializer;
+        private IEventSerializer _eventSerializer;
+
         public bool IsStarted { get; private set; }
 
-        public Market(String name, String routerEndpoint)
+        public Market(String name, String routerEndpoint, ISerializer serializer, IEventSerializer eventSerializer)
         {
             Id = Guid.NewGuid();
+
+            _serializer = serializer;
+            _eventSerializer = eventSerializer;
 
             _routerEndpoint = routerEndpoint;
             _name = name;
             _cancel = new CancellationTokenSource();
          
         }
-
         private ChangeCcyPairPrice Next()
         {
             var mid = _rand.NextDouble() * 10;
             var spread = _rand.NextDouble() * 2;
 
-            var topic = CcyPairs[_rand.Next(0, 3)];
+            var topic = CcyPairs[_rand.Next(0, CcyPairs.Count())];
 
             var price = new ChangeCcyPairPrice(
                 ask: mid + spread,
@@ -68,8 +74,11 @@ namespace ZeroMQPlayground.DynamicData.Domain
 
                     var changePrice = Next();
 
-                    publisherSocket.Send(changePrice);
+                    var message = _eventSerializer.ToTransportMessage(changePrice);
 
+                    publisherSocket.SendMoreFrame(message.Subject)
+                                   .SendFrame(_serializer.Serialize(message));
+                    
                 }
             }
         }

@@ -9,8 +9,10 @@ namespace ZeroMQPlayground.DynamicData.Shared
         public TransportMessage()
         {
             MessageId = Guid.NewGuid();
+            Version = -1;
         }
 
+        public long Version { get; set; }
         public Guid MessageId { get; set; }
         public string Subject { get; set; }
         public byte[] MessageBytes { get; set; }

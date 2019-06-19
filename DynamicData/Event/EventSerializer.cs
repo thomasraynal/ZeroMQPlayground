@@ -7,30 +7,57 @@ using System.Text;
 
 namespace ZeroMQPlayground.DynamicData.Shared
 {
-    public class PropertyToken
+
+    public class EventSerializer : IEventSerializer
     {
-        public PropertyToken(int position, Type eventType, PropertyInfo propertyInfo)
+        public const string All = "*";
+        public const string Separator = ".";
+        private ISerializer _serializer;
+
+        public EventSerializer(ISerializer serializer)
         {
-            Position = position;
-            EventType = eventType;
-            PropertyInfo = propertyInfo;
+            _serializer = serializer;
         }
 
-        public int Position { get; }
-        public PropertyInfo PropertyInfo { get; }
-        public Type EventType { get; }
-
-    }
-
-    public class EventSerializer
-    {
-        public string Serialize<TEvent>(TEvent @event)
+        public string GetAggregateId(string subject)
         {
-            var tokens = GetTokens(typeof(TEvent));
+            return subject.Split(Separator).First();
+        }
 
-            return tokens.Select(token => @event.GetType().GetProperty(token.PropertyInfo.Name).GetValue(@event, null))
-                         .Select(obj => null == obj ? "*" : obj.ToString())
-                         .Aggregate((token1, token2) => $"{token1}.{token2}");
+        //todo review event suject setting and versioning
+
+        public IEvent<TKey, TAggregate> ToEvent<TKey, TAggregate>(TransportMessage transportMessage) where TAggregate : IAggregate<TKey>
+        {
+            var @event = (IEvent<TKey, TAggregate>)_serializer.Deserialize(transportMessage.MessageBytes,transportMessage.MessageType);
+            @event.Version = transportMessage.Version;
+            return @event;
+        }
+
+        public TransportMessage ToTransportMessage<TKey, TAggregate>(IEvent<TKey, TAggregate> @event) where TAggregate : IAggregate<TKey>
+        {
+            @event.Subject = GetSubject(@event);
+
+            var message = new TransportMessage()
+            {
+                MessageBytes = _serializer.Serialize(@event),
+                Subject = @event.Subject,
+                MessageType = @event.GetType(),
+                Version = @event.Version,
+            };
+
+            return message;
+
+        }
+
+        public string GetSubject<TKey, TAggregate>(IEvent<TKey, TAggregate> @event) where TAggregate : IAggregate<TKey>
+        {
+            var tokens = GetTokens(@event.GetType());
+
+            var subject = tokens.Select(token => @event.GetType().GetProperty(token.PropertyInfo.Name).GetValue(@event, null))
+                         .Select(obj => null == obj ? All : obj.ToString())
+                         .Aggregate((token1, token2) => $"{token1}{Separator}{token2}");
+
+            return $"{@event.AggregateId}.{subject}";
 
         }
 

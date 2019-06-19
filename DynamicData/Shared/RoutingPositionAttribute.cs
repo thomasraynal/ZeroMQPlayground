@@ -11,7 +11,6 @@ namespace ZeroMQPlayground.DynamicData.Shared
 
         public RoutingPositionAttribute(int position)
         {
-            //todo: enforce position >0
             Position = position;
         }
     }

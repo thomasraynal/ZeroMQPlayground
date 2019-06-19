@@ -9,7 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using ZeroMQPlayground.DynamicData.Shared;
 
-namespace ZeroMQPlayground.DynamicData.Domain
+namespace ZeroMQPlayground.DynamicData
 {
     public class Broker : IActor
     {
@@ -25,51 +25,35 @@ namespace ZeroMQPlayground.DynamicData.Domain
         private ConfiguredTaskAwaitable _cacheHandlerProc;
         private ConfiguredTaskAwaitable _stateOfTheWorldProc;
 
-        private Proxy _xPubXSubProxy;
+        private NetMQPoller _poller;
         private ResponseSocket _heartbeatSocket;
         private RouterSocket _stateRequestSocket;
-        private SubscriberSocket _cacheSubscriberSocket;
 
-        //todo: external cache storage
-        private readonly List<TransportMessage> _cache;
+        private readonly IEventCache _cache;
+        private readonly ISerializer _serializer;
 
-        public Broker(string toPublisherEndpoint, string toSubscribersEndpoint, string stateOftheWorldEndpoint, string heartbeatEndpoint)
+        public Broker(string toPublisherEndpoint, 
+            string toSubscribersEndpoint, 
+            string stateOftheWorldEndpoint, 
+            string heartbeatEndpoint, 
+            IEventCache cache,
+            ISerializer serializer)
         {
             Id = Guid.NewGuid();
 
+            _cache = cache;
+            _serializer = serializer;
             _stateOfTheWorldEndpoint = stateOftheWorldEndpoint;
             _toPublishersEndpoint = toPublisherEndpoint;
             _toSubscribersEndpoint = toSubscribersEndpoint;
             _heartbeatEndpoint = heartbeatEndpoint;
 
             _cancel = new CancellationTokenSource();
-            _cache = new List<TransportMessage>();
 
         }
-
-
-        public List<TransportMessage> Cache => _cache;
 
         public Guid Id { get; }
-
         public bool IsStarted { get; private set; }
-
-        public void HandleCache()
-        {
-            using ( _cacheSubscriberSocket = new SubscriberSocket())
-            {
-                _cacheSubscriberSocket.Bind("inproc://cache");
-                _cacheSubscriberSocket.Connect(_toSubscribersEndpoint);
-                _cacheSubscriberSocket.SubscribeToAnyTopic();
-
-                while (!_cancel.IsCancellationRequested)
-                {
-                    var message = _cacheSubscriberSocket.ReceiveMultipartMessage();
-                    var payload = message[1].Buffer.Deserialize<TransportMessage>();
-                    _cache.Add(payload);
-                }
-            }
-        }
 
         public void HandleHeartbeat()
         {
@@ -77,18 +61,17 @@ namespace ZeroMQPlayground.DynamicData.Domain
             {
                 while (!_cancel.IsCancellationRequested)
                 {
-                    var heartbeatQuery = _heartbeatSocket.ReceiveFrameBytes()
-                                                   .Deserialize<Heartbeat>();
+                    var messageBytes = _heartbeatSocket.ReceiveFrameBytes();
 
                     if (_cancel.IsCancellationRequested) return;
 
-                    _heartbeatSocket.SendFrame(Heartbeat.Response.Serialize());
+                    _heartbeatSocket.SendFrame(_serializer.Serialize(Heartbeat.Response));
 
                 }
             }
         }
 
-        private void HandleStateOfTheWorldRequest()
+        private async Task HandleStateOfTheWorldRequest()
         {
             using (_stateRequestSocket = new RouterSocket())
             {
@@ -96,33 +79,20 @@ namespace ZeroMQPlayground.DynamicData.Domain
 
                 while (!_cancel.IsCancellationRequested)
                 {
-                    //todo : api definition
                     var message = _stateRequestSocket.ReceiveMultipartMessage();
                     var sender = message[0].Buffer;
-                    var request = message[1].Buffer.Deserialize<StateRequest>();
+                    var request = _serializer.Deserialize<StateRequest>(message[1].Buffer);
+
+                    var stream = await _cache.GetStreamBySubject(request.Subject);
 
                     var response = new StateReply()
                     {
-                        //Topic = request.Topic,
-                        Subject = request.Subject
+                        Subject = request.Subject,
+                        Events = stream.Select(ev => _serializer.Deserialize<TransportMessage>(ev.Message)).ToList()
                     };
 
-                    //if there is any cache at all
-                    if (_cache.Count > 0)
-                    {
-                        if (request.Subject == string.Empty)
-                        {
-                            //todo: performance issues
-                            response.Events = _cache;
-                        }
-                        else
-                        {
-                            response.Events = _cache.Where(ev => ev.Subject == request.Subject).ToList();
-                        }
-                    }
-
                     _stateRequestSocket.SendMoreFrame(sender)
-                                 .SendFrame(response.Serialize());
+                                 .SendFrame(_serializer.Serialize(response));
 
                 }
             }
@@ -130,16 +100,34 @@ namespace ZeroMQPlayground.DynamicData.Domain
 
         private void HandleWork()
         {
-            using (var stateUpdate = new XSubscriberSocket())
+            using (var stateUpdate = new SubscriberSocket())
             {
+                stateUpdate.SubscribeToAnyTopic();
                 stateUpdate.Bind(_toPublishersEndpoint);
 
-                using (var stateUpdatePublish = new XPublisherSocket())
+                using (var stateUpdatePublish = new PublisherSocket())
                 {
                     stateUpdatePublish.Bind(_toSubscribersEndpoint);
-                    _xPubXSubProxy = new Proxy(stateUpdate, stateUpdatePublish);
-                    _xPubXSubProxy.Start();
 
+                    //protractor?
+                    stateUpdate.ReceiveReady += async (s, e) =>
+                            {
+                                //todo: perf - just forwarding + eventid
+                                var message = e.Socket.ReceiveMultipartMessage();
+
+                                var subject = message[0].ConvertToString();
+                                var payload = message[1];
+
+                                await _cache.AppendToStream(subject, payload.Buffer);
+
+                                stateUpdatePublish.SendMoreFrame(message[0].Buffer)
+                                                  .SendFrame(payload.Buffer);
+                            };
+
+                    using (_poller = new NetMQPoller { stateUpdate, stateUpdatePublish })
+                    {
+                        _poller.Run();
+                    }
                 }
             }
         }
@@ -153,7 +141,6 @@ namespace ZeroMQPlayground.DynamicData.Domain
             _workProc = Task.Run(HandleWork, _cancel.Token).ConfigureAwait(false);
             _heartbeartProc = Task.Run(HandleHeartbeat, _cancel.Token).ConfigureAwait(false);
             _stateOfTheWorldProc = Task.Run(HandleStateOfTheWorldRequest, _cancel.Token).ConfigureAwait(false);
-            _cacheHandlerProc = Task.Run(HandleCache, _cancel.Token).ConfigureAwait(false);
 
             return Task.CompletedTask;
         }
@@ -162,13 +149,10 @@ namespace ZeroMQPlayground.DynamicData.Domain
         {
             _cancel.Cancel();
 
-            _xPubXSubProxy.Stop();
+            _poller.Stop();
 
             _heartbeatSocket.Close();
             _heartbeatSocket.Dispose();
-
-            _cacheSubscriberSocket.Close();
-            _cacheSubscriberSocket.Dispose();
 
             _stateRequestSocket.Close();
             _stateRequestSocket.Dispose();

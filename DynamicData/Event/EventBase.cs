@@ -4,7 +4,7 @@ using System.Text;
 
 namespace ZeroMQPlayground.DynamicData.Shared
 {
-    public abstract class EventBase<TKey,TAgreggate> : IEvent<TKey,TAgreggate> where TAgreggate : IAggregate<TKey>
+    public abstract class EventBase<TKey, TAgreggate> : IEvent<TKey, TAgreggate> where TAgreggate : IAggregate<TKey>
     {
         protected EventBase()
         {
@@ -17,14 +17,17 @@ namespace ZeroMQPlayground.DynamicData.Shared
             AggregateId = aggregateId;
         }
 
-        [RoutingPosition(0)]
         public TKey AggregateId { get; set; }
 
         public DateTime Timestamp { get; set; }
 
-        public Type EventType { get ; set; }
+        public Type EventType { get; set; }
 
-        public string Subject { get;  set; }
+        public string Subject { get; set; }
+
+        public long Version { get; set; }
+
+        public string EventId => $"{AggregateId}.{Version}";
 
         public abstract void Apply(TAgreggate aggregate);
 
@@ -36,12 +39,6 @@ namespace ZeroMQPlayground.DynamicData.Shared
         public bool CanApply(Type type)
         {
             return type == typeof(TAgreggate);
-        }
-
-        public void Validate()
-        {
-            var serializer = new EventSerializer();
-            Subject = serializer.Serialize((dynamic)this);
         }
     }
 }
