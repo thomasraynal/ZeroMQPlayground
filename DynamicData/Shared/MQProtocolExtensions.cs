@@ -32,12 +32,23 @@ namespace ZeroMQPlayground.DynamicData.Shared
                         .SendFrame(enveloppe.Serialize());
         }
 
-        public static T Receive<T>(this SubscriberSocket publisherSocket)
+        public static bool TryReceive<T>(this SubscriberSocket publisherSocket, TimeSpan timeout, out T response)
         {
-            var message = publisherSocket.ReceiveMultipartMessage();
-            var enveloppe = message[1].Buffer.Deserialize<TransportMessage>();
+            NetMQMessage message = null;
+            var hasMessage = publisherSocket.TryReceiveMultipartMessage(timeout, ref message);
 
-            return (T)enveloppe.MessageBytes.Deserialize(enveloppe.MessageType);
+            if (hasMessage)
+            {
+                var enveloppe = message[1].Buffer.Deserialize<TransportMessage>();
+                response = (T)enveloppe.MessageBytes.Deserialize(enveloppe.MessageType);
+            }
+            else
+            {
+                response = default;
+            }
+
+            return hasMessage;
+
         }
     }
 }

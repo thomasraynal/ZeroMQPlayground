@@ -4,10 +4,11 @@ using System.Text;
 
 namespace ZeroMQPlayground.DynamicData
 {
-    public enum DynamicCacheStatus
+    public enum DynamicCacheState
     {
         Disconnected,
-        Stale,
-        Connected
+        Staled,
+        Connected,
+        Disposed
     }
 }

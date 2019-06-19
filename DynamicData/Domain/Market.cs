@@ -10,23 +10,30 @@ using ZeroMQPlayground.DynamicData.Shared;
 
 namespace ZeroMQPlayground.DynamicData.Domain
 {
-    public class Market
+    //todo: ActorBase, ProducerBase
+    public class Market : IActor
     {
 
         private static readonly string[] CcyPairs = { "EUR/USD", "EUR/JPY", "EUR/GBP", "EUR/CDN" };
 
         private string _routerEndpoint;
         private string _name;
-        private CancellationToken _cancel;
+        private CancellationTokenSource _cancel;
         private ConfiguredTaskAwaitable _workProc;
         private readonly Random _rand = new Random();
 
-        public Market(String name, String routerEndpoint, CancellationToken token)
+        public Guid Id { get; }
+
+        public bool IsStarted { get; private set; }
+
+        public Market(String name, String routerEndpoint)
         {
+            Id = Guid.NewGuid();
+
             _routerEndpoint = routerEndpoint;
             _name = name;
-            _cancel = token;
-            _workProc = Task.Run(Work, _cancel).ConfigureAwait(false);
+            _cancel = new CancellationTokenSource();
+         
         }
 
         private ChangeCcyPairPrice Next()
@@ -48,7 +55,7 @@ namespace ZeroMQPlayground.DynamicData.Domain
             return price;
         }
 
-        private void Work()
+        private void HandleWork()
         {
             using (var publisherSocket = new PublisherSocket())
             {
@@ -65,6 +72,26 @@ namespace ZeroMQPlayground.DynamicData.Domain
 
                 }
             }
+        }
+
+        public Task Start()
+        {
+            if (IsStarted) throw new InvalidOperationException($"{nameof(Market)} is already started");
+
+            IsStarted = true;
+
+            _workProc = Task.Run(HandleWork, _cancel.Token).ConfigureAwait(false);
+
+            return Task.CompletedTask;
+        }
+
+        public Task Stop()
+        {
+            _cancel.Cancel();
+
+            IsStarted = false;
+
+            return Task.CompletedTask;
         }
     }
 }

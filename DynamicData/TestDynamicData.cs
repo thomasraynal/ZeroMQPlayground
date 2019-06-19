@@ -34,10 +34,14 @@ namespace ZeroMQPlayground.DynamicData
         [Test]
         public async Task TestSubscribeToSubject()
         {
-            var cancel = new CancellationTokenSource();
+            
             var router = new Broker(ToPublishersEndpoint, ToSubscribersEndpoint, StateOfTheWorldEndpoint, HeartbeatEndpoint);
-            var market1 = new Market("FxConnect", ToPublishersEndpoint, cancel.Token);
-            var market2 = new Market("Harmony", ToPublishersEndpoint, cancel.Token);
+            var market1 = new Market("FxConnect", ToPublishersEndpoint);
+            var market2 = new Market("Harmony", ToPublishersEndpoint);
+
+            await router.Start();
+            await market1.Start();
+            await market2.Start();
 
             //create an event cache
             await Task.Delay(3000);
@@ -52,11 +56,11 @@ namespace ZeroMQPlayground.DynamicData
                 Subject = "EUR/USD.FxConnect"
             };
 
-            var cacheEuroDol = new DynamicCache<string, CurrencyPair>();
-            var cacheEuroDolFxConnect = new DynamicCache<string, CurrencyPair>();
+            var cacheEuroDol = new DynamicCache<string, CurrencyPair>(cacheConfigurationEuroDol);
+            var cacheEuroDolFxConnect = new DynamicCache<string, CurrencyPair>(cacheConfigurationEuroDolFxConnect);
 
-            await cacheEuroDol.Connect(cacheConfigurationEuroDol);
-            await cacheEuroDolFxConnect.Connect(cacheConfigurationEuroDolFxConnect);
+            await cacheEuroDol.Start();
+            await cacheEuroDolFxConnect.Start();
 
             //wait for a substential event stream
             await Task.Delay(3000);
@@ -79,19 +83,22 @@ namespace ZeroMQPlayground.DynamicData
             // EUR/USD.FxConnect
             Assert.AreEqual(1, ccyPairsCacheEuroDolFxConnect.Count());
             Assert.AreEqual(cacheConfigurationEuroDolFxConnect.Subject, ccyPairsCacheEuroDolFxConnect.First());
-  
 
 
+            await Task.WhenAll(new[] { router.Stop(), market1.Stop(), market2.Stop(), cacheEuroDol.Stop(), cacheEuroDolFxConnect.Stop() });
         }
 
         [Test]
         public async Task TestSubscribeToEventFeed()
         {
-            var cancel = new CancellationTokenSource();
+         
             var router = new Broker(ToPublishersEndpoint, ToSubscribersEndpoint, StateOfTheWorldEndpoint, HeartbeatEndpoint);
+            var market1 = new Market("FxConnect", ToPublishersEndpoint);
+            var market2 = new Market("Harmony", ToPublishersEndpoint);
 
-            var market1 = new Market("FxConnect", ToPublishersEndpoint, cancel.Token);
-            var market2 = new Market("Harmony", ToPublishersEndpoint, cancel.Token);
+            await router.Start();
+            await market1.Start();
+            await market2.Start();
 
             //create an event cache
             await Task.Delay(2000);
@@ -100,7 +107,7 @@ namespace ZeroMQPlayground.DynamicData
 
             var cacheConfiguration = new DynamicCacheConfiguration(ToSubscribersEndpoint, StateOfTheWorldEndpoint, HeartbeatEndpoint);
 
-            var cache = new DynamicCache<string, CurrencyPair>();
+            var cache = new DynamicCache<string, CurrencyPair>(cacheConfiguration);
 
             var counter = 0;
 
@@ -111,7 +118,7 @@ namespace ZeroMQPlayground.DynamicData
                                    counter++;
                                });
 
-            await cache.Connect(cacheConfiguration);
+            await cache.Start();
 
             await Task.Delay(2000);
 
@@ -125,6 +132,9 @@ namespace ZeroMQPlayground.DynamicData
                                     .Select(ev => ev.Market)
                                     .Distinct()
                                     .Count());
+
+
+            await Task.WhenAll(new[] { router.Stop(), market1.Stop(), market2.Stop(), cache.Stop() });
 
         }
 

@@ -11,90 +11,53 @@ using NetMQ.Sockets;
 
 namespace ZeroMQPlayground.DynamicData.Shared
 {
-    public class DynamicCache<TKey, TAggregate> : IDynamicCache<TKey, TAggregate>, IDisposable
+    public class DynamicCache<TKey, TAggregate> : IDynamicCache<TKey, TAggregate>
         where TAggregate : IAggregate<TKey>, new()
     {
         private DynamicCacheConfiguration _configuration;
         private CancellationTokenSource _cancel;
+        private IDisposable _stateObservable;
         private Thread _workProc;
-
-        private BehaviorSubject<bool> _isConnected;
-        private BehaviorSubject<bool> _isCaughtUp;
-        private BehaviorSubject<bool> _isStale;
-
         private Thread _heartBeatProc;
+
+        private BehaviorSubject<DynamicCacheState> _state;
+        private SubscriberSocket _cacheUpdateSocket;
 
         private SourceCache<TAggregate, TKey> _sourceCache { get; }
 
-        public DynamicCache()
+        public DynamicCache(DynamicCacheConfiguration configuration)
         {
+            Id = Guid.NewGuid();
+
+            _configuration = configuration;
             _sourceCache = new SourceCache<TAggregate, TKey>(selector => selector.Id);
+            _cancel = new CancellationTokenSource();
+            _state = new BehaviorSubject<DynamicCacheState>(DynamicCacheState.Disconnected);
+
         }
 
-        public IObservable<bool> IsConnected
+        public IObservable<DynamicCacheState> State
         {
             get
             {
-                return _isConnected.AsObservable();
-            }
-        }
-
-        public IObservable<bool> IsCaughtUp
-        {
-            get
-            {
-                return _isCaughtUp.AsObservable();
-            }
-        }
-
-        public IObservable<bool> IsStale
-        {
-            get
-            {
-                return _isStale.AsObservable();
+                return _state.AsObservable();
             }
         }
 
         //todo: threadsafe?
         public IEnumerable<TAggregate> Items => _sourceCache.Items;
 
-        public async Task Connect(DynamicCacheConfiguration configuration)
-        {
+        public Guid Id { get; }
 
-            _configuration = configuration;
-
-            _cancel = new CancellationTokenSource();
-
-            _isStale = new BehaviorSubject<bool>(true);
-            _isCaughtUp = new BehaviorSubject<bool>(false);
-
-            _workProc = new Thread(Work)
-            {
-                IsBackground = true
-            };
-
-            _workProc.Start();
-
-            //todo: handle disconnect, reconnect and stale state
-            _heartBeatProc = new Thread(Heartbeat)
-            {
-                IsBackground = true
-            };
-
-            _heartBeatProc.Start();
-
-
-            await GetStateOfTheWorld();
-
-        }
+        public bool IsStarted { get; private set; }
 
         private Task GetStateOfTheWorld()
         {
+            //req resp?
             using (var dealer = new DealerSocket())
             {
                 var request = new StateRequest()
                 {
-                    //Topic = _configuration.Topic,
                     Subject = _configuration.Subject,
                 };
 
@@ -120,28 +83,64 @@ namespace ZeroMQPlayground.DynamicData.Shared
             return Task.CompletedTask;
         }
 
-        private void Heartbeat()
+        private void HandleHeartbeat()
         {
+            while (!_cancel.IsCancellationRequested)
+            {
+                using (var heartbeat = new RequestSocket(_configuration.HearbeatEndpoint))
+                {
+                    heartbeat.SendFrame(Heartbeat.Query.Serialize());
+                    var response = heartbeat.TryReceiveFrameBytes(_configuration.HeartbeatDelay, out var responseBytes);
 
+                    if (_cancel.IsCancellationRequested) return;
+
+                    var currentState = response ? DynamicCacheState.Connected : DynamicCacheState.Disconnected;
+
+                    switch (currentState)
+                    {
+                        //raise only if previous state is disconnected
+                        case DynamicCacheState.Connected:
+                            if(_state.Value == DynamicCacheState.Disconnected)
+                                _state.OnNext(currentState);
+                            break;
+                        //raise only if previous state is connected or staled
+                        case DynamicCacheState.Disconnected:
+                            if (_state.Value == DynamicCacheState.Connected || _state.Value == DynamicCacheState.Staled)
+                                _state.OnNext(currentState);
+                            break;
+                    }
+
+                }
+
+                Thread.Sleep(_configuration.HeartbeatDelay.Milliseconds);
+
+            }
         }
 
-        private void Work()
+        private void HandleWork()
         {
-            using (var sub = new SubscriberSocket())
+            using (_cacheUpdateSocket = new SubscriberSocket())
             {
                
-                sub.Options.ReceiveHighWatermark = _configuration.ZmqHighWatermark;
+                _cacheUpdateSocket.Options.ReceiveHighWatermark = _configuration.ZmqHighWatermark;
 
-                sub.Subscribe(_configuration.Subject);
-                sub.Connect(_configuration.SubscriptionEndpoint);
+                _cacheUpdateSocket.Subscribe(_configuration.Subject);
+                _cacheUpdateSocket.Connect(_configuration.SubscriptionEndpoint);
 
                 while (!_cancel.IsCancellationRequested)
                 {
-                    //todo : define platform agnostic protocol
-                    var @event = sub.Receive<IEvent<TKey, TAggregate>>();
+                    var hasMessage = _cacheUpdateSocket.TryReceive(_configuration.IsStaleTimeout, out IEvent<TKey, TAggregate> @event);
 
-                    OnEventReceived(@event);
+                    if (_cancel.IsCancellationRequested) return;
 
+                    if (hasMessage)
+                    {
+                        OnEventReceived(@event);
+                    }
+                    else
+                    {
+                        _state.OnNext(DynamicCacheState.Staled);
+                    }
                 }
             }
         }
@@ -174,9 +173,52 @@ namespace ZeroMQPlayground.DynamicData.Shared
             return _sourceCache.AsObservableCache();
         }
 
-        public void Dispose()
+        public async Task Start()
         {
-            throw new NotImplementedException();
+            if (IsStarted) throw new InvalidOperationException($"{nameof(DynamicCache<TKey, TAggregate>)} is already started");
+
+            IsStarted = true;
+
+            //todo: handle reconnect and cache recreate
+            _stateObservable = _state.Subscribe((state) =>
+             {
+
+             });
+
+            _workProc = new Thread(HandleWork)
+            {
+                IsBackground = true
+            };
+
+            _workProc.Start();
+
+            _heartBeatProc = new Thread(HandleHeartbeat)
+            {
+                IsBackground = true
+            };
+
+            _heartBeatProc.Start();
+
+            await GetStateOfTheWorld();
+        }
+
+        public Task Stop()
+        {
+            _cancel.Cancel();
+
+            _stateObservable.Dispose();
+
+            _state.OnNext(DynamicCacheState.Disposed);
+            _state.OnCompleted();
+
+            _sourceCache.Dispose();
+
+            _cacheUpdateSocket.Close();
+            _cacheUpdateSocket.Dispose();
+
+            IsStarted = false;
+
+            return Task.CompletedTask;
         }
     }
 }
