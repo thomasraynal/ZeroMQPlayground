@@ -5,7 +5,7 @@ using ZeroMQPlayground.DynamicData.Shared;
 
 namespace ZeroMQPlayground.DynamicData.Domain
 {
-    public class ChangeCcyPairState : EventBase<String,CurrencyPair>
+    public class ChangeCcyPairState : CommandBase<String,CurrencyPair>
     {
         [RoutingPosition(1)]
         public CcyPairState State { get; set; }

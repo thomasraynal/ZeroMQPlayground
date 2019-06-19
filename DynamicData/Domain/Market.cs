@@ -41,11 +41,9 @@ namespace ZeroMQPlayground.DynamicData.Domain
                 bid: mid - spread,
                 mid: mid,
                 spread: spread,
-                stockId: topic,
+                ccyPairId: topic,
                 market: _name
             );
-
-            price.Validate();
 
             return price;
         }

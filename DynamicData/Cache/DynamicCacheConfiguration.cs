@@ -16,10 +16,15 @@ namespace ZeroMQPlayground.DynamicData.Shared
             HeartbeatTimeout = TimeSpan.FromSeconds(1);
 
             IsStaleTimespan = TimeSpan.MaxValue;
-
             ZmqHighWatermark = 1000;
+
+            //todo: redundancy, topic is the aggregate id, subject the zmq subject where subject[0] == topic
+            Subject = string.Empty;
+            //Topic = string.Empty;
         }
 
+        public string Subject { get; set; }
+        //public string Topic { get; set; }
         public int ZmqHighWatermark { get; set; }
         public TimeSpan HeartbeatDelay { get; set; }
         public TimeSpan HeartbeatTimeout { get; set; }

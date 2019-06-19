@@ -27,8 +27,8 @@ namespace ZeroMQPlayground.DynamicData.Domain
         private ResponseSocket _heartbeat;
         private RouterSocket _stateRequest;
 
-        //todo: cross platform compliance....
-        private readonly Dictionary<string, List<TransportMessage>> _cache;
+        //todo: storage
+        private readonly List<TransportMessage> _cache;
 
         public Broker(string toPublisherEndpoint, string toSubscribersEndpoint, string stateOftheWorldEndpoint, string heartbeatEndpoint)
         {
@@ -40,7 +40,7 @@ namespace ZeroMQPlayground.DynamicData.Domain
             _cancel = new CancellationTokenSource();
 
             //todo: threadsafe when state request
-            _cache = new Dictionary<string, List<TransportMessage>>();
+            _cache = new List<TransportMessage>();
 
             //todo: proper cleanup - close sockets
             _workProc = Task.Run(Work, _cancel.Token).ConfigureAwait(false);
@@ -63,7 +63,7 @@ namespace ZeroMQPlayground.DynamicData.Domain
 
         }
 
-        public Dictionary<string, List<TransportMessage>> Cache => _cache;
+        public List<TransportMessage> Cache => _cache;
 
         public void HandleCache()
         {
@@ -76,15 +76,8 @@ namespace ZeroMQPlayground.DynamicData.Domain
                 while (!_cancel.IsCancellationRequested)
                 {
                     var message = cache.ReceiveMultipartMessage();
-                    var topic = message[0].Buffer.DeserializeString();
                     var payload = message[1].Buffer.Deserialize<TransportMessage>();
-
-                    if (!_cache.ContainsKey(topic))
-                    {
-                        _cache[topic] = new List<TransportMessage>();
-                    }
-
-                    _cache[topic].Add(payload);
+                    _cache.Add(payload);
                 }
             }
         }
@@ -114,7 +107,6 @@ namespace ZeroMQPlayground.DynamicData.Domain
 
                 while (!_cancel.IsCancellationRequested)
                 {
-
                     //todo : api definition
                     var message = _stateRequest.ReceiveMultipartMessage();
                     var sender = message[0].Buffer;
@@ -122,19 +114,22 @@ namespace ZeroMQPlayground.DynamicData.Domain
 
                     var response = new StateReply()
                     {
-                        Topic = request.Topic
+                        //Topic = request.Topic,
+                        Subject = request.Subject
                     };
 
-                    if (request.Topic == string.Empty && _cache.Count > 0)
+                    //if there is any cache at all
+                    if (_cache.Count > 0)
                     {
-                        response.Events = _cache.Values.Aggregate((@events1, @events2) =>
+                        if (request.Subject == string.Empty)
                         {
-                            return events1.Concat(events2).ToList();
-                        });
-                    }
-                    else if (_cache.ContainsKey(request.Topic))
-                    {
-                        response.Events = _cache[request.Topic];
+                            //todo: performance issues
+                            response.Events = _cache;
+                        }
+                        else
+                        {
+                            response.Events = _cache.Where(ev => ev.Subject == request.Subject).ToList();
+                        }
                     }
 
                     _stateRequest.SendMoreFrame(sender)

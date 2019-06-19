@@ -41,7 +41,7 @@ namespace ZeroMQPlayground.DynamicData.Shared
         public void Validate()
         {
             var serializer = new EventSerializer();
-            Subject = serializer.Serialize(this);
+            Subject = serializer.Serialize((dynamic)this);
         }
     }
 }

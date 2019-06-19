@@ -5,9 +5,9 @@ using ZeroMQPlayground.DynamicData.Shared;
 
 namespace ZeroMQPlayground.DynamicData.Domain
 {
-    public class ChangeCcyPairPrice : EventBase<string, CurrencyPair>
+    public class ChangeCcyPairPrice : CommandBase<string, CurrencyPair>
     {
-        public ChangeCcyPairPrice(string stockId, string market, double ask, double bid, double mid, double spread): base(stockId)
+        public ChangeCcyPairPrice(string ccyPairId, string market, double ask, double bid, double mid, double spread): base(ccyPairId)
         {
             Ask = ask;
             Bid = bid;
@@ -15,6 +15,7 @@ namespace ZeroMQPlayground.DynamicData.Domain
             Spread = spread;
             Market = market;
         }
+
         public double Ask { get; set; }
         public double Bid { get; set; }
         public double Mid { get; set; }

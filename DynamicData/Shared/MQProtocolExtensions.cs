@@ -14,18 +14,21 @@ namespace ZeroMQPlayground.DynamicData.Shared
         public static void Send<TKey, TAgreggate>(this PublisherSocket publisherSocket, IEvent<TKey, TAgreggate> @event)
            where TAgreggate : IAggregate<TKey>
         {
-            //todo - key serializable
+
+
+            @event.Validate();
+
             //todo - inject serializer
             var enveloppe = new TransportMessage()
             {
                 MessageBytes = @event.Serialize(),
-                Topic = @event.AggregateId.ToString(),
+                Subject = @event.Subject,
                 MessageType = @event.GetType()
             };
 
             //refacto - key serializable
             publisherSocket
-                        .SendMoreFrame(enveloppe.Topic.SerializeString())
+                        .SendMoreFrame(enveloppe.Subject.SerializeString())
                         .SendFrame(enveloppe.Serialize());
         }
 

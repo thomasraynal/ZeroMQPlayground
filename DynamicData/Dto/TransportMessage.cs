@@ -12,7 +12,7 @@ namespace ZeroMQPlayground.DynamicData.Shared
         }
 
         public Guid MessageId { get; set; }
-        public string Topic { get; set; }
+        public string Subject { get; set; }
         public byte[] MessageBytes { get; set; }
         public Type MessageType { get; set; }
     }

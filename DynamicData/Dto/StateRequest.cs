@@ -6,12 +6,17 @@ namespace ZeroMQPlayground.DynamicData.Shared
 {
     public class StateRequest
     {
+
         public static readonly StateRequest Default = new StateRequest();
         public StateRequest()
         {
-            Topic = string.Empty;
+            Subject = string.Empty;
         }
 
-        public string Topic { get; set; }
+        public StateRequest(string subject)
+        {
+            Subject = subject;
+        }
+        public string Subject { get; set; }
     }
 }

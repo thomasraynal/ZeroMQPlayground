@@ -21,6 +21,7 @@ namespace ZeroMQPlayground.DynamicData.Shared
         private BehaviorSubject<bool> _isConnected;
         private BehaviorSubject<bool> _isCaughtUp;
         private BehaviorSubject<bool> _isStale;
+
         private Thread _heartBeatProc;
 
         private SourceCache<TAggregate, TKey> _sourceCache { get; }
@@ -67,12 +68,21 @@ namespace ZeroMQPlayground.DynamicData.Shared
             _isStale = new BehaviorSubject<bool>(true);
             _isCaughtUp = new BehaviorSubject<bool>(false);
 
-            _workProc = new Thread(Work);
+            _workProc = new Thread(Work)
+            {
+                IsBackground = true
+            };
+
             _workProc.Start();
 
             //todo: handle disconnect, reconnect and stale state
-            _heartBeatProc = new Thread(Heartbeat);
+            _heartBeatProc = new Thread(Heartbeat)
+            {
+                IsBackground = true
+            };
+
             _heartBeatProc.Start();
+
 
             await GetStateOfTheWorld();
 
@@ -82,8 +92,14 @@ namespace ZeroMQPlayground.DynamicData.Shared
         {
             using (var dealer = new DealerSocket())
             {
+                var request = new StateRequest()
+                {
+                    //Topic = _configuration.Topic,
+                    Subject = _configuration.Subject,
+                };
+
                 dealer.Connect(_configuration.StateOfTheWorldEndpoint);
-                dealer.SendFrame(StateRequest.Default.Serialize());
+                dealer.SendFrame(request.Serialize());
 
                 //parameterized
                 var hasResponse = dealer.TryReceiveFrameBytes(_configuration.HeartbeatTimeout, out var responseBytes);
@@ -116,8 +132,7 @@ namespace ZeroMQPlayground.DynamicData.Shared
                
                 sub.Options.ReceiveHighWatermark = _configuration.ZmqHighWatermark;
 
-                //todo : handle subcription filter via lambda
-                sub.SubscribeToAnyTopic();
+                sub.Subscribe(_configuration.Subject);
                 sub.Connect(_configuration.SubscriptionEndpoint);
 
                 while (!_cancel.IsCancellationRequested)
