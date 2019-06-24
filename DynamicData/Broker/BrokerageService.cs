@@ -1,24 +1,16 @@
 ﻿using NetMQ;
 using NetMQ.Sockets;
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using ZeroMQPlayground.DynamicData.Broker;
 using ZeroMQPlayground.DynamicData.Shared;
 
 namespace ZeroMQPlayground.DynamicData
 {
-    public class Broker : IActor
+    public class BrokerageService : ActorBase
     {
-
-        private readonly string _toPublishersEndpoint;
-        private readonly string _toSubscribersEndpoint;
-        private readonly string _stateOfTheWorldEndpoint;
-        private readonly string _heartbeatEndpoint;
 
         private readonly CancellationTokenSource _cancel;
 
@@ -32,33 +24,47 @@ namespace ZeroMQPlayground.DynamicData
 
         private readonly IEventCache _cache;
         private readonly ISerializer _serializer;
+        private readonly IBrokerageServiceConfiguration _configuration;
 
-        public Broker(string toPublisherEndpoint, 
-            string toSubscribersEndpoint, 
-            string stateOftheWorldEndpoint, 
-            string heartbeatEndpoint, 
-            IEventCache cache,
-            ISerializer serializer)
+        public BrokerageService(IBrokerageServiceConfiguration configuration, IEventCache cache,ISerializer serializer)
         {
-            Id = Guid.NewGuid();
 
             _cache = cache;
             _serializer = serializer;
-            _stateOfTheWorldEndpoint = stateOftheWorldEndpoint;
-            _toPublishersEndpoint = toPublisherEndpoint;
-            _toSubscribersEndpoint = toSubscribersEndpoint;
-            _heartbeatEndpoint = heartbeatEndpoint;
+            _configuration = configuration;
 
             _cancel = new CancellationTokenSource();
 
         }
 
-        public Guid Id { get; }
-        public bool IsStarted { get; private set; }
+        protected override Task RunInternal()
+        {
+            _workProc = Task.Run(HandleWork, _cancel.Token).ConfigureAwait(false);
+            _heartbeartProc = Task.Run(HandleHeartbeat, _cancel.Token).ConfigureAwait(false);
+            _stateOfTheWorldProc = Task.Run(HandleStateOfTheWorldRequest, _cancel.Token).ConfigureAwait(false);
+
+            return Task.CompletedTask;
+        }
+
+        protected override Task DestroyInternal()
+        {
+            _cancel.Cancel();
+
+            _poller.Stop();
+
+            _heartbeatSocket.Close();
+            _heartbeatSocket.Dispose();
+
+            _stateRequestSocket.Close();
+            _stateRequestSocket.Dispose();
+
+            return Task.CompletedTask;
+
+        }
 
         public void HandleHeartbeat()
         {
-            using (_heartbeatSocket = new ResponseSocket(_heartbeatEndpoint))
+            using (_heartbeatSocket = new ResponseSocket(_configuration.HeartbeatEndpoint))
             {
                 while (!_cancel.IsCancellationRequested)
                 {
@@ -76,13 +82,13 @@ namespace ZeroMQPlayground.DynamicData
         {
             using (_stateRequestSocket = new RouterSocket())
             {
-                _stateRequestSocket.Bind(_stateOfTheWorldEndpoint);
+                _stateRequestSocket.Bind(_configuration.StateOftheWorldEndpoint);
 
                 while (!_cancel.IsCancellationRequested)
                 {
                     var message = _stateRequestSocket.ReceiveMultipartMessage();
                     var sender = message[0].Buffer;
-                    var request = _serializer.Deserialize<StateRequest>(message[1].Buffer);
+                    var request = _serializer.Deserialize<IStateRequest>(message[1].Buffer);
 
                     var stream = await _cache.GetStreamBySubject(request.Subject);
 
@@ -104,11 +110,11 @@ namespace ZeroMQPlayground.DynamicData
             using (var stateUpdate = new SubscriberSocket())
             {
                 stateUpdate.SubscribeToAnyTopic();
-                stateUpdate.Bind(_toPublishersEndpoint);
+                stateUpdate.Bind(_configuration.ToPublisherEndpoint);
 
                 using (var stateUpdatePublish = new PublisherSocket())
                 {
-                    stateUpdatePublish.Bind(_toSubscribersEndpoint);
+                    stateUpdatePublish.Bind(_configuration.ToSubscribersEndpoint);
 
                     stateUpdate.ReceiveReady += async (s, e) =>
                             {
@@ -131,38 +137,6 @@ namespace ZeroMQPlayground.DynamicData
                     }
                 }
             }
-        }
-
-        public Task Run()
-        {
-            if (IsStarted) throw new InvalidOperationException($"{nameof(Broker)} is already started");
-
-            //todo: handle on ActorBase
-            IsStarted = true;
-
-            _workProc = Task.Run(HandleWork, _cancel.Token).ConfigureAwait(false);
-            _heartbeartProc = Task.Run(HandleHeartbeat, _cancel.Token).ConfigureAwait(false);
-            _stateOfTheWorldProc = Task.Run(HandleStateOfTheWorldRequest, _cancel.Token).ConfigureAwait(false);
-
-            return Task.CompletedTask;
-        }
-
-        public Task Destroy()
-        {
-            _cancel.Cancel();
-
-            _poller.Stop();
-
-            _heartbeatSocket.Close();
-            _heartbeatSocket.Dispose();
-
-            _stateRequestSocket.Close();
-            _stateRequestSocket.Dispose();
-
-            IsStarted = false;
-
-            return Task.CompletedTask;
-
         }
     }
 }

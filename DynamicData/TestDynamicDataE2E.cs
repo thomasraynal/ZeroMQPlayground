@@ -1,18 +1,14 @@
 ﻿using NetMQ;
-using NetMQ.Sockets;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using NUnit.Framework;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
+using ZeroMQPlayground.DynamicData.Broker;
 using ZeroMQPlayground.DynamicData.Domain;
 using ZeroMQPlayground.DynamicData.Dto;
 using ZeroMQPlayground.DynamicData.Shared;
-using ZeroMQPlayground.Shared;
 
 namespace ZeroMQPlayground.DynamicData
 {
@@ -31,7 +27,7 @@ namespace ZeroMQPlayground.DynamicData
         }
 
         [OneTimeSetUp]
-        public void GlobalSetup()
+        public void OneTimeSetUp()
         {
             JsonConvert.DefaultSettings = () =>
             {
@@ -45,13 +41,15 @@ namespace ZeroMQPlayground.DynamicData
                 settings.Converters.Add(new AbstractConverter<IEventMessage, EventMessage>());
                 settings.Converters.Add(new AbstractConverter<IProducerMessage, ProducerMessage>());
                 settings.Converters.Add(new AbstractConverter<IEventId, EventId>());
-
+                settings.Converters.Add(new AbstractConverter<IStateReply, StateReply>());
+                settings.Converters.Add(new AbstractConverter<IStateRequest, StateRequest>());
+         
                 return settings;
             };
         }
 
         [Test]
-        public async Task TestHandleDisconnect()
+        public async Task ShouldHandleDisconnectAndCacheRebuild()
         {
             var eventIdProvider = new InMemoryEventIdProvider();
             var serializer = new JsonNetSerializer();
@@ -59,12 +57,29 @@ namespace ZeroMQPlayground.DynamicData
 
             var eventCache = new InMemoryEventCache(eventIdProvider, eventSerializer);
 
-            var router = new Broker(ToPublishersEndpoint, ToSubscribersEndpoint, StateOfTheWorldEndpoint, HeartbeatEndpoint, eventCache, serializer);
+            var brokerConfiguration = new BrokerageServiceConfiguration()
+            {
+                HeartbeatEndpoint = HeartbeatEndpoint,
+                StateOftheWorldEndpoint = StateOfTheWorldEndpoint,
+                ToSubscribersEndpoint = ToSubscribersEndpoint,
+                ToPublisherEndpoint = ToPublishersEndpoint
+            };
 
-            var market1 = new Market("FxConnect", ToPublishersEndpoint, eventSerializer, 100);
-            var market2 = new Market("Harmony", ToPublishersEndpoint, eventSerializer, 100);
+            var router = new BrokerageService(brokerConfiguration, eventCache, serializer);
+
+            var marketConfiguration = new ProducerConfiguration()
+            {
+                RouterEndpoint = ToPublishersEndpoint,
+                HearbeatEndpoint = HeartbeatEndpoint
+            };
+
+            var market1 = new Market("FxConnect", marketConfiguration, eventSerializer, TimeSpan.FromMilliseconds(100));
+            var market2 = new Market("Harmony", marketConfiguration, eventSerializer, TimeSpan.FromMilliseconds(100));
 
             await router.Run();
+
+
+            await Task.Delay(1000);
 
             await market1.Run();
             await market2.Run();
@@ -72,7 +87,7 @@ namespace ZeroMQPlayground.DynamicData
             var cacheConfiguration = new DynamicCacheConfiguration(ToSubscribersEndpoint, StateOfTheWorldEndpoint, HeartbeatEndpoint)
             {
                 Subject = string.Empty,
-                HeartbeatDelay = TimeSpan.FromSeconds(2),
+                HeartbeatDelay = TimeSpan.FromMilliseconds(500),
                 HeartbeatTimeout = TimeSpan.FromSeconds(1)
             };
 
@@ -82,13 +97,13 @@ namespace ZeroMQPlayground.DynamicData
             await cacheProof.Run();
             await cache.Run();
 
-            Assert.AreEqual(DynamicCacheState.None, cache.State);
-            Assert.AreEqual(DynamicCacheState.None, cacheProof.State);
+            Assert.AreEqual(DynamicCacheState.NotConnected, cache.CacheState);
+            Assert.AreEqual(DynamicCacheState.NotConnected, cacheProof.CacheState);
 
-            await Task.Delay(4000);
+            await Task.Delay(2000);
 
-            Assert.AreEqual(DynamicCacheState.Connected, cache.State);
-            Assert.AreEqual(DynamicCacheState.Connected, cacheProof.State);
+            Assert.AreEqual(DynamicCacheState.Connected, cache.CacheState);
+            Assert.AreEqual(DynamicCacheState.Connected, cacheProof.CacheState);
 
             await Task.Delay(3000);
 
@@ -103,16 +118,17 @@ namespace ZeroMQPlayground.DynamicData
 
             await Task.Delay(cacheConfiguration.HeartbeatDelay);
 
-            Assert.AreEqual(DynamicCacheState.Disconnected, cache.State);
-            Assert.AreEqual(DynamicCacheState.Disconnected, cacheProof.State);
+            Assert.AreEqual(DynamicCacheState.Disconnected, cache.CacheState);
+            Assert.AreEqual(DynamicCacheState.Disconnected, cacheProof.CacheState);
 
-            router = new Broker(ToPublishersEndpoint, ToSubscribersEndpoint, StateOfTheWorldEndpoint, HeartbeatEndpoint, eventCache, serializer);
+            router = new BrokerageService(brokerConfiguration, eventCache, serializer);
+
             await router.Run();
 
             await Task.Delay(TimeSpan.FromSeconds(3));
 
-            Assert.AreEqual(DynamicCacheState.Connected, cache.State);
-            Assert.AreEqual(DynamicCacheState.Connected, cacheProof.State);
+            Assert.AreEqual(DynamicCacheState.Connected, cache.CacheState);
+            Assert.AreEqual(DynamicCacheState.Connected, cacheProof.CacheState);
 
             await router.Destroy();
 
@@ -146,7 +162,7 @@ namespace ZeroMQPlayground.DynamicData
         }
 
         [Test]
-        public async Task TestSubscribeToSubject()
+        public async Task ShouldSubscribeToSubject()
         {
             //todo .NET COre MVC implem
             var eventIdProvider = new InMemoryEventIdProvider();
@@ -155,10 +171,24 @@ namespace ZeroMQPlayground.DynamicData
           
             var eventCache = new InMemoryEventCache(eventIdProvider,eventSerializer);
 
-            var router = new Broker(ToPublishersEndpoint, ToSubscribersEndpoint, StateOfTheWorldEndpoint, HeartbeatEndpoint, eventCache, serializer);
+            var brokerConfiguration = new BrokerageServiceConfiguration()
+            {
+                HeartbeatEndpoint = HeartbeatEndpoint,
+                StateOftheWorldEndpoint = StateOfTheWorldEndpoint,
+                ToSubscribersEndpoint = ToSubscribersEndpoint,
+                ToPublisherEndpoint = ToPublishersEndpoint
+            };
 
-            var market1 = new Market("FxConnect", ToPublishersEndpoint,eventSerializer);
-            var market2 = new Market("Harmony", ToPublishersEndpoint,eventSerializer);
+            var router = new BrokerageService(brokerConfiguration, eventCache, serializer);
+
+            var marketConfiguration = new ProducerConfiguration()
+            {
+                RouterEndpoint = ToPublishersEndpoint,
+                HearbeatEndpoint = HeartbeatEndpoint
+            };
+
+            var market1 = new Market("FxConnect", marketConfiguration, eventSerializer, TimeSpan.FromMilliseconds(750));
+            var market2 = new Market("Harmony", marketConfiguration, eventSerializer, TimeSpan.FromMilliseconds(750));
 
             await router.Run();
             await market1.Run();
@@ -210,16 +240,31 @@ namespace ZeroMQPlayground.DynamicData
         }
 
         [Test]
-        public async Task TestSubscribeToEventFeed()
+        public async Task ShouldSubscribeToEventFeed()
         {
             var eventIdProvider = new InMemoryEventIdProvider();
             var serializer = new JsonNetSerializer();
             var eventSerializer = new EventSerializer(serializer);
             var eventCache = new InMemoryEventCache(eventIdProvider, eventSerializer);
-     
-            var router = new Broker(ToPublishersEndpoint, ToSubscribersEndpoint, StateOfTheWorldEndpoint, HeartbeatEndpoint, eventCache, serializer);
-            var market1 = new Market("FxConnect", ToPublishersEndpoint, eventSerializer);
-            var market2 = new Market("Harmony", ToPublishersEndpoint, eventSerializer);
+
+            var brokerConfiguration = new BrokerageServiceConfiguration()
+            {
+                HeartbeatEndpoint = HeartbeatEndpoint,
+                StateOftheWorldEndpoint = StateOfTheWorldEndpoint,
+                ToSubscribersEndpoint = ToSubscribersEndpoint,
+                ToPublisherEndpoint = ToPublishersEndpoint
+            };
+
+            var router = new BrokerageService(brokerConfiguration, eventCache, serializer);
+
+            var marketConfiguration = new ProducerConfiguration()
+            {
+                RouterEndpoint = ToPublishersEndpoint,
+                HearbeatEndpoint = HeartbeatEndpoint
+            };
+
+            var market1 = new Market("FxConnect", marketConfiguration, eventSerializer, TimeSpan.FromMilliseconds(750));
+            var market2 = new Market("Harmony", marketConfiguration, eventSerializer, TimeSpan.FromMilliseconds(750));
 
             await router.Run();
             await market1.Run();

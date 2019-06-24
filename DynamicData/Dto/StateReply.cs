@@ -5,7 +5,7 @@ using ZeroMQPlayground.DynamicData.Dto;
 
 namespace ZeroMQPlayground.DynamicData.Shared
 {
-    public class StateReply
+    public class StateReply : IStateReply
     {
         public StateReply()
         {

@@ -13,6 +13,6 @@ namespace ZeroMQPlayground.DynamicData
         IObservableCache<TAggregate, TKey> OnItemChanged();
         IEnumerable<TAggregate> GetItems();
         IObservable<DynamicCacheState> OnStateChanged();
-        DynamicCacheState State { get; }
+        DynamicCacheState CacheState { get; }
     }
 }

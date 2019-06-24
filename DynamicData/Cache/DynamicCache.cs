@@ -13,35 +13,35 @@ using ZeroMQPlayground.DynamicData.Dto;
 
 namespace ZeroMQPlayground.DynamicData.Shared
 {
-    public class DynamicCache<TKey, TAggregate> : IDynamicCache<TKey, TAggregate>
+    public class DynamicCache<TKey, TAggregate> : ActorBase, IDynamicCache<TKey, TAggregate>
         where TAggregate : IAggregate<TKey>, new()
     {
-        private DynamicCacheConfiguration _configuration;
-        private CancellationTokenSource _cancel;
-        private IDisposable _reconnectObservable;
+        private readonly IDynamicCacheConfiguration _configuration;
+        private readonly CancellationTokenSource _cancel;
+
+        private IDisposable _observeCacheState;
+
         private ConfiguredTaskAwaitable _workProc;
         private ConfiguredTaskAwaitable _heartbeatProc;
 
         private BehaviorSubject<DynamicCacheState> _state;
         private SubscriberSocket _cacheUpdateSocket;
-        private IEventSerializer _eventSerializer;
+        private readonly IEventSerializer _eventSerializer;
 
-        private object _lock = new object();
-
-        private SourceCache<TAggregate, TKey> _sourceCache;
-        private CaughtingUpCache<TKey, TAggregate> _caughtingUpCache;
-
+        private readonly object _caughtingUpLock = new object();
         private volatile bool _isCaughtingUp;
+        private readonly CaughtingUpCache<TKey, TAggregate> _caughtingUpCache;
 
-        public DynamicCache(DynamicCacheConfiguration configuration, IEventSerializer eventSerializer)
+        private readonly SourceCache<TAggregate, TKey> _sourceCache;
+
+        public DynamicCache(IDynamicCacheConfiguration configuration, IEventSerializer eventSerializer)
         {
-            Id = Guid.NewGuid();
-
+   
             _eventSerializer = eventSerializer;
             _configuration = configuration;
             _sourceCache = new SourceCache<TAggregate, TKey>(selector => selector.Id);
             _cancel = new CancellationTokenSource();
-            _state = new BehaviorSubject<DynamicCacheState>(DynamicCacheState.None);
+            _state = new BehaviorSubject<DynamicCacheState>(DynamicCacheState.NotConnected);
             _caughtingUpCache = new CaughtingUpCache<TKey, TAggregate>();
 
         }
@@ -56,7 +56,7 @@ namespace ZeroMQPlayground.DynamicData.Shared
             return _sourceCache.AsObservableCache();
         }
 
-        public DynamicCacheState State
+        public DynamicCacheState CacheState
         {
             get
             {
@@ -66,9 +66,7 @@ namespace ZeroMQPlayground.DynamicData.Shared
 
         public IEnumerable<TAggregate> GetItems() => _sourceCache.Items;
 
-        public Guid Id { get; }
-
-        private StateReply GetStateOfTheWorld()
+        private IStateReply GetStateOfTheWorld()
         {
             using (var dealer = new DealerSocket())
             {
@@ -102,7 +100,7 @@ namespace ZeroMQPlayground.DynamicData.Shared
 
                     heartbeat.SendFrame(payload);
 
-                    var response = heartbeat.TryReceiveFrameBytes(_configuration.HeartbeatDelay, out var responseBytes);
+                    var response = heartbeat.TryReceiveFrameBytes(_configuration.HeartbeatTimeout, out var responseBytes);
 
                     if (_cancel.IsCancellationRequested) return;
 
@@ -112,7 +110,7 @@ namespace ZeroMQPlayground.DynamicData.Shared
                     {
                         case DynamicCacheState.Connected:
 
-                            if (_state.Value == DynamicCacheState.None || _state.Value == DynamicCacheState.Reconnected || _state.Value == DynamicCacheState.Staled)
+                            if (_state.Value == DynamicCacheState.NotConnected || _state.Value == DynamicCacheState.Reconnected || _state.Value == DynamicCacheState.Staled)
                             {
                                 _state.OnNext(currentState);
                             }
@@ -167,6 +165,7 @@ namespace ZeroMQPlayground.DynamicData.Shared
                         var producerMessage = _eventSerializer.Serializer.Deserialize<IProducerMessage>(eventMessageBytes);
 
                         var @event = _eventSerializer.ToEvent<TKey, TAggregate>(eventId, producerMessage);
+
                         OnEventReceived(@event);
                     }
                     else
@@ -206,7 +205,7 @@ namespace ZeroMQPlayground.DynamicData.Shared
             if (_isCaughtingUp)
             {
                 //we try to acquire the lock and process the event on the catchup feed
-                lock (_lock)
+                lock (_caughtingUpLock)
                 {
                     //we got the lock - has the caughtup feed process ended meanwhile? if so, process the event on the main feed
                     if (_isCaughtingUp)
@@ -220,11 +219,10 @@ namespace ZeroMQPlayground.DynamicData.Shared
             ApplyEvent(@event);
         }
 
-        public Task Run()
+        protected override Task RunInternal()
         {
-            if (_state.Value != DynamicCacheState.None) throw new InvalidOperationException($"{nameof(DynamicCache<TKey, TAggregate>)} is already started");
 
-            _reconnectObservable = _state
+            _observeCacheState = _state
                 .Where(state => state == DynamicCacheState.Reconnected)
                 .Subscribe((state) =>
                  {
@@ -236,25 +234,25 @@ namespace ZeroMQPlayground.DynamicData.Shared
 
                          var stateOfTheWorld = GetStateOfTheWorld();
 
-                         var update = new Action<IEvent<TKey, TAggregate>>((e) =>
+                         var update = new Action<IEvent<TKey, TAggregate>>((@event) =>
                          {
 
-                             var aggregate = updater.Lookup(e.EventStreamId);
+                             var aggregate = updater.Lookup(@event.EventStreamId);
 
                              if (!aggregate.HasValue)
                              {
                                  var @new = new TAggregate
                                  {
-                                     Id = e.EventStreamId
+                                     Id = @event.EventStreamId
                                  };
 
-                                 @new.Apply(e);
+                                 @new.Apply(@event);
 
                                  updater.AddOrUpdate(@new);
                              }
                              else
                              {
-                                 aggregate.Value.Apply(e);
+                                 aggregate.Value.Apply(@event);
 
                                  updater.AddOrUpdate(aggregate.Value);
                              }
@@ -268,7 +266,7 @@ namespace ZeroMQPlayground.DynamicData.Shared
                              update(@event);
                          }
 
-                         lock (_lock)
+                         lock (_caughtingUpLock)
                          {
 
                              var replayEvents = _caughtingUpCache.CaughtUpEvents
@@ -296,13 +294,14 @@ namespace ZeroMQPlayground.DynamicData.Shared
       
         }
 
-        public Task Destroy()
+        protected override Task DestroyInternal()
         {
             _cancel.Cancel();
 
-            _reconnectObservable.Dispose();
+            _observeCacheState.Dispose();
 
             _state.OnCompleted();
+            _state.Dispose();
 
             _sourceCache.Dispose();
 

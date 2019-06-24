@@ -4,7 +4,7 @@ using System.Text;
 
 namespace ZeroMQPlayground.DynamicData.Shared
 {
-    public class StateRequest
+    public class StateRequest : IStateRequest
     {
 
         public static readonly StateRequest Default = new StateRequest();

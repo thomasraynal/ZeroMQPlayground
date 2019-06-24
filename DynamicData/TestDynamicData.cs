@@ -20,7 +20,7 @@ namespace ZeroMQPlayground.DynamicData
     public class TestDynamicData
     {
         [Test]
-        public void TestEventSubjectSerialization()
+        public void ShouldSerializeEventSubject()
         {
             var serializer = new JsonNetSerializer();
             var eventSerializer = new EventSerializer(serializer);
@@ -60,7 +60,7 @@ namespace ZeroMQPlayground.DynamicData
         }
 
         [Test]
-        public void TestEventApply()
+        public void ShouldApplyEvent()
         {
             var ccyPair = new CurrencyPair()
             {

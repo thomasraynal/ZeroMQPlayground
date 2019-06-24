@@ -11,36 +11,37 @@ using ZeroMQPlayground.DynamicData.Shared;
 
 namespace ZeroMQPlayground.DynamicData.Domain
 {
-    //todo: ActorBase, ProducerBase
-    public class Market : IActor
+    public class Market : ProducerBase<string,CurrencyPair>
     {
 
         private static readonly string[] CcyPairs = { "EUR/USD", "EUR/GBP" };
 
-        private string _routerEndpoint;
-        private string _name;
-        private CancellationTokenSource _cancel;
+        private readonly string _name;
+        private readonly CancellationTokenSource _cancel;
         private ConfiguredTaskAwaitable _workProc;
         private readonly Random _rand = new Random();
+        private readonly TimeSpan _priceGenerationDelay;
 
-        public Guid Id { get; }
+        public List<ChangeCcyPairPrice> Prices { get; set; }
 
-        private IEventSerializer _eventSerializer;
-        private long _generationTimespan;
-
-        public bool IsStarted { get; private set; }
-
-        public Market(String name, String routerEndpoint,IEventSerializer eventSerializer, long generationTimespan = 750)
+        public Market(String name, IProducerConfiguration configuration, IEventSerializer eventSerializer, TimeSpan priceGenerationDelay) : base(configuration,eventSerializer)
         {
-            Id = Guid.NewGuid();
-
-            _eventSerializer = eventSerializer;
-
-            _generationTimespan = generationTimespan;
-            _routerEndpoint = routerEndpoint;
+            _priceGenerationDelay = priceGenerationDelay;
             _name = name;
             _cancel = new CancellationTokenSource();
-         
+
+            Prices = new List<ChangeCcyPairPrice>();
+
+            OnDestroyed += () =>
+            {
+                _cancel.Cancel();
+            };
+
+            OnRunning += () =>
+            {
+                _workProc = Task.Run(HandleWork, _cancel.Token).ConfigureAwait(false);
+            };
+
         }
         private ChangeCcyPairPrice Next()
         {
@@ -63,43 +64,21 @@ namespace ZeroMQPlayground.DynamicData.Domain
 
         private void HandleWork()
         {
-            using (var publisherSocket = new PublisherSocket())
+            while (!_cancel.IsCancellationRequested)
             {
-                publisherSocket.Connect(_routerEndpoint);
+                Thread.Sleep(_priceGenerationDelay);
 
-                while (!_cancel.IsCancellationRequested)
+                if (_cancel.IsCancellationRequested) return;
+
+                if (ProducerState == Producer.ProducerState.Connected)
                 {
-                    Thread.Sleep(TimeSpan.FromMilliseconds(_generationTimespan));
-
                     var changePrice = Next();
 
-                    var message = _eventSerializer.ToProducerMessage(changePrice);
+                    Publish(changePrice);
 
-                    publisherSocket.SendMoreFrame(message.Subject)
-                                   .SendFrame(_eventSerializer.Serializer.Serialize(message));
-
+                    Prices.Add(changePrice);
                 }
             }
-        }
-
-        public Task Run()
-        {
-            if (IsStarted) throw new InvalidOperationException($"{nameof(Market)} is already started");
-
-            IsStarted = true;
-
-            _workProc = Task.Run(HandleWork, _cancel.Token).ConfigureAwait(false);
-
-            return Task.CompletedTask;
-        }
-
-        public Task Destroy()
-        {
-            _cancel.Cancel();
-
-            IsStarted = false;
-
-            return Task.CompletedTask;
         }
     }
 }
