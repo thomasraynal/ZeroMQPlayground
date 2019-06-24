@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using ZeroMQPlayground.DynamicData.Dto;
 
 namespace ZeroMQPlayground.DynamicData.Shared
 {
@@ -8,10 +9,10 @@ namespace ZeroMQPlayground.DynamicData.Shared
     {
         public StateReply()
         {
-            Events = new List<TransportMessage>();
+            Events = new List<IEventMessage>();
         }
 
         public string Subject { get; set; }
-        public List<TransportMessage> Events { get; set; }
+        public List<IEventMessage> Events { get; set; }
     }
 }

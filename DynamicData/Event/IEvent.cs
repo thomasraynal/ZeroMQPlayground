@@ -7,7 +7,6 @@ namespace ZeroMQPlayground.DynamicData.Shared
     public interface IEvent
     {
         string EventId { get; }
-        DateTime Timestamp { get; }
         string Subject { get; set; }
         Type EventType { get; }
         bool CanApply(Type type);
@@ -17,7 +16,7 @@ namespace ZeroMQPlayground.DynamicData.Shared
 
     public interface IEvent<TKey, TAggregate> : IEvent where TAggregate : IAggregate<TKey>
     {
-        TKey AggregateId { get; }
+        TKey EventStreamId { get; }
         void Apply(TAggregate aggregate);
     }
 }

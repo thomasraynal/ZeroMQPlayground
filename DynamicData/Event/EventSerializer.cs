@@ -4,19 +4,22 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
+using ZeroMQPlayground.DynamicData.Dto;
 
 namespace ZeroMQPlayground.DynamicData.Shared
 {
 
     public class EventSerializer : IEventSerializer
     {
+        //todo : handle the zmq All and *
         public const string All = "*";
         public const string Separator = ".";
-        private ISerializer _serializer;
+
+        public ISerializer Serializer { get; }
 
         public EventSerializer(ISerializer serializer)
         {
-            _serializer = serializer;
+            Serializer = serializer;
         }
 
         public string GetAggregateId(string subject)
@@ -24,25 +27,29 @@ namespace ZeroMQPlayground.DynamicData.Shared
             return subject.Split(Separator).First();
         }
 
-        //todo review event suject setting and versioning
-
-        public IEvent<TKey, TAggregate> ToEvent<TKey, TAggregate>(TransportMessage transportMessage) where TAggregate : IAggregate<TKey>
+        public IEvent<TKey, TAggregate> ToEvent<TKey, TAggregate>(IEventMessage eventMessage) where TAggregate : IAggregate<TKey>
         {
-            var @event = (IEvent<TKey, TAggregate>)_serializer.Deserialize(transportMessage.MessageBytes,transportMessage.MessageType);
-            @event.Version = transportMessage.Version;
+            var @event = (IEvent<TKey, TAggregate>)Serializer.Deserialize(eventMessage.ProducerMessage.MessageBytes, eventMessage.ProducerMessage.MessageType);
+            @event.Version = eventMessage.EventId.Version;
             return @event;
         }
 
-        public TransportMessage ToTransportMessage<TKey, TAggregate>(IEvent<TKey, TAggregate> @event) where TAggregate : IAggregate<TKey>
+        public IEvent<TKey, TAggregate> ToEvent<TKey, TAggregate>(IEventId eventId, IProducerMessage eventMessage) where TAggregate : IAggregate<TKey>
+        {
+            var @event = (IEvent<TKey, TAggregate>)Serializer.Deserialize(eventMessage.MessageBytes, eventMessage.MessageType);
+            @event.Version = eventId.Version;
+            return @event;
+        }
+
+        public IProducerMessage ToProducerMessage<TKey, TAggregate>(IEvent<TKey, TAggregate> @event) where TAggregate : IAggregate<TKey>
         {
             @event.Subject = GetSubject(@event);
 
-            var message = new TransportMessage()
+            var message = new ProducerMessage()
             {
-                MessageBytes = _serializer.Serialize(@event),
+                MessageBytes = Serializer.Serialize(@event),
                 Subject = @event.Subject,
-                MessageType = @event.GetType(),
-                Version = @event.Version,
+                MessageType = @event.GetType()
             };
 
             return message;
@@ -57,7 +64,7 @@ namespace ZeroMQPlayground.DynamicData.Shared
                          .Select(obj => null == obj ? All : obj.ToString())
                          .Aggregate((token1, token2) => $"{token1}{Separator}{token2}");
 
-            return $"{@event.AggregateId}.{subject}";
+            return $"{@event.EventStreamId}.{subject}";
 
         }
 

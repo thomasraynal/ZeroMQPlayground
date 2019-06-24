@@ -23,16 +23,18 @@ namespace ZeroMQPlayground.DynamicData
         public string Subject { get; set; }
         public string Id => $"{EventStream}.{Version}";
 
+        public long Timestamp { get; set; }
+
         public override bool Equals(object obj)
         {
             return obj is EventId id &&
-                   EventStream == id.EventStream &&
-                   Version == id.Version;
+                   Subject == id.Subject &&
+                   Id == id.Id;
         }
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(EventStream, Version);
+            return HashCode.Combine(Subject, Id);
         }
     }
 }

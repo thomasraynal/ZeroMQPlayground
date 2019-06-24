@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using ZeroMQPlayground.DynamicData.Shared;
 
@@ -14,5 +15,10 @@ namespace ZeroMQPlayground.DynamicData.Domain
         public double Bid { get; set; }
         public double Mid { get; set; }
         public double Spread { get; set; }
+
+        public override string ToString()
+        {
+            return $"{this.Id}({AppliedEvents.Count()} event(s))";
+        }
     }
 }

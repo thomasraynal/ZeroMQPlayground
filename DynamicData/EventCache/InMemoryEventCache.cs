@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ZeroMQPlayground.DynamicData.Dto;
 using ZeroMQPlayground.DynamicData.Shared;
 
 namespace ZeroMQPlayground.DynamicData
@@ -13,7 +14,6 @@ namespace ZeroMQPlayground.DynamicData
 
         private readonly IEventIdProvider _eventIdProvider;
         private readonly IEventSerializer _eventSerializer;
-
         private readonly ConcurrentDictionary<string, SortedList<long,IEventCacheItem>> _cache;
 
         public InMemoryEventCache(IEventIdProvider eventIdProvider, IEventSerializer eventSerializer)
@@ -42,21 +42,62 @@ namespace ZeroMQPlayground.DynamicData
             return Task.FromResult(eventID);
 
         }
-
-        public Task<IEnumerable<IEventCacheItem>> GetStream(string streamId)
+        private Task<IEnumerable<IEventMessage>> GetAllStreams()
         {
-            if (!_cache.ContainsKey(streamId)) return Task.FromResult(Enumerable.Empty<IEventCacheItem>());
+            if (_cache.Count == 0) return Task.FromResult(Enumerable.Empty<IEventMessage>());
 
-            return Task.FromResult(_cache[streamId].Values.AsEnumerable());
+            var items = _cache.Values.SelectMany(list=> list.Values).Select(cacheItem =>
+            {
+                return new EventMessage()
+                {
+                    EventId = cacheItem.EventId,
+                    ProducerMessage = _eventSerializer.Serializer.Deserialize<ProducerMessage>(cacheItem.Message)
+                };
+
+            });
+
+            return Task.FromResult(items.Cast<IEventMessage>());
         }
 
-        public Task<IEnumerable<IEventCacheItem>> GetStreamBySubject(string subject)
+        public Task<IEnumerable<IEventMessage>> GetStream(string streamId)
         {
+            if (!_cache.ContainsKey(streamId)) return Task.FromResult(Enumerable.Empty<IEventMessage>());
+
+            var items = _cache[streamId].Values.Select(cacheItem =>
+             {
+                 return new EventMessage()
+                 {
+                     EventId = cacheItem.EventId,
+                     ProducerMessage = _eventSerializer.Serializer.Deserialize<ProducerMessage>(cacheItem.Message)
+                 };
+
+             });
+
+            return Task.FromResult(items.Cast<IEventMessage>());
+        }
+
+        public async Task<IEnumerable<IEventMessage>> GetStreamBySubject(string subject)
+        {
+            if (subject == string.Empty) return await GetAllStreams();
+
             var streamId = _eventSerializer.GetAggregateId(subject);
 
-            if (!_cache.ContainsKey(streamId)) return Task.FromResult(Enumerable.Empty<IEventCacheItem>());
+            if (!_cache.ContainsKey(streamId)) return Enumerable.Empty<IEventMessage>();
 
-            return Task.FromResult(_cache[streamId].Values.Where(ev => ev.EventId.Subject == subject).AsEnumerable());
+            var items = _cache[streamId].Values
+                .Where(ev => ev.EventId.Subject == subject || subject == string.Empty)
+                .Select(cacheItem =>
+                {
+                    return new EventMessage()
+                    {
+                        EventId = cacheItem.EventId,
+                        ProducerMessage = _eventSerializer.Serializer.Deserialize<ProducerMessage>(cacheItem.Message)
+                    };
+
+                });
+
+            return items.Cast<IEventMessage>();
+
         }
     }
 }

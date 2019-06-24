@@ -25,18 +25,18 @@ namespace ZeroMQPlayground.DynamicData.Domain
 
         public Guid Id { get; }
 
-        private ISerializer _serializer;
         private IEventSerializer _eventSerializer;
+        private long _generationTimespan;
 
         public bool IsStarted { get; private set; }
 
-        public Market(String name, String routerEndpoint, ISerializer serializer, IEventSerializer eventSerializer)
+        public Market(String name, String routerEndpoint,IEventSerializer eventSerializer, long generationTimespan = 750)
         {
             Id = Guid.NewGuid();
 
-            _serializer = serializer;
             _eventSerializer = eventSerializer;
 
+            _generationTimespan = generationTimespan;
             _routerEndpoint = routerEndpoint;
             _name = name;
             _cancel = new CancellationTokenSource();
@@ -69,21 +69,20 @@ namespace ZeroMQPlayground.DynamicData.Domain
 
                 while (!_cancel.IsCancellationRequested)
                 {
-                    //let the subscriber time to connect...
-                    Thread.Sleep(750);
+                    Thread.Sleep(TimeSpan.FromMilliseconds(_generationTimespan));
 
                     var changePrice = Next();
 
-                    var message = _eventSerializer.ToTransportMessage(changePrice);
+                    var message = _eventSerializer.ToProducerMessage(changePrice);
 
                     publisherSocket.SendMoreFrame(message.Subject)
-                                   .SendFrame(_serializer.Serialize(message));
-                    
+                                   .SendFrame(_eventSerializer.Serializer.Serialize(message));
+
                 }
             }
         }
 
-        public Task Start()
+        public Task Run()
         {
             if (IsStarted) throw new InvalidOperationException($"{nameof(Market)} is already started");
 
@@ -94,7 +93,7 @@ namespace ZeroMQPlayground.DynamicData.Domain
             return Task.CompletedTask;
         }
 
-        public Task Stop()
+        public Task Destroy()
         {
             _cancel.Cancel();
 

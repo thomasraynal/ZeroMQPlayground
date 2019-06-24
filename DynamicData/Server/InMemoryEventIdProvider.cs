@@ -32,7 +32,8 @@ namespace ZeroMQPlayground.DynamicData
             {
                 EventStream = streamName,
                 Subject = subject,
-                Version = version
+                Version = version,
+                Timestamp = DateTime.Now.Ticks
             };
 
             _eventIds.Add(eventId);

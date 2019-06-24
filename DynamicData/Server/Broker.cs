@@ -1,6 +1,7 @@
 ﻿using NetMQ;
 using NetMQ.Sockets;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -13,6 +14,7 @@ namespace ZeroMQPlayground.DynamicData
 {
     public class Broker : IActor
     {
+
         private readonly string _toPublishersEndpoint;
         private readonly string _toSubscribersEndpoint;
         private readonly string _stateOfTheWorldEndpoint;
@@ -22,7 +24,6 @@ namespace ZeroMQPlayground.DynamicData
 
         private ConfiguredTaskAwaitable _workProc;
         private ConfiguredTaskAwaitable _heartbeartProc;
-        private ConfiguredTaskAwaitable _cacheHandlerProc;
         private ConfiguredTaskAwaitable _stateOfTheWorldProc;
 
         private NetMQPoller _poller;
@@ -88,11 +89,11 @@ namespace ZeroMQPlayground.DynamicData
                     var response = new StateReply()
                     {
                         Subject = request.Subject,
-                        Events = stream.Select(ev => _serializer.Deserialize<TransportMessage>(ev.Message)).ToList()
+                        Events = stream.ToList()
                     };
 
                     _stateRequestSocket.SendMoreFrame(sender)
-                                 .SendFrame(_serializer.Serialize(response));
+                                       .SendFrame(_serializer.Serialize(response));
 
                 }
             }
@@ -109,18 +110,18 @@ namespace ZeroMQPlayground.DynamicData
                 {
                     stateUpdatePublish.Bind(_toSubscribersEndpoint);
 
-                    //protractor?
                     stateUpdate.ReceiveReady += async (s, e) =>
                             {
-                                //todo: perf - just forwarding + eventid
+                           
                                 var message = e.Socket.ReceiveMultipartMessage();
 
                                 var subject = message[0].ConvertToString();
                                 var payload = message[1];
 
-                                await _cache.AppendToStream(subject, payload.Buffer);
+                                var eventId = await _cache.AppendToStream(subject, payload.Buffer);
 
                                 stateUpdatePublish.SendMoreFrame(message[0].Buffer)
+                                                  .SendMoreFrame(_serializer.Serialize(eventId))
                                                   .SendFrame(payload.Buffer);
                             };
 
@@ -132,10 +133,11 @@ namespace ZeroMQPlayground.DynamicData
             }
         }
 
-        public Task Start()
+        public Task Run()
         {
             if (IsStarted) throw new InvalidOperationException($"{nameof(Broker)} is already started");
 
+            //todo: handle on ActorBase
             IsStarted = true;
 
             _workProc = Task.Run(HandleWork, _cancel.Token).ConfigureAwait(false);
@@ -145,7 +147,7 @@ namespace ZeroMQPlayground.DynamicData
             return Task.CompletedTask;
         }
 
-        public Task Stop()
+        public Task Destroy()
         {
             _cancel.Cancel();
 

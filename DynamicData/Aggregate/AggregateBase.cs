@@ -30,11 +30,11 @@ namespace ZeroMQPlayground.DynamicData.Shared
             OnEventApplied(@event);
         }
 
-        public void Apply<TAggregate>(IEvent<TKey,TAggregate> @event) where TAggregate : IAggregate<TKey>
+        public void Apply<TAggregate>(IEvent<TKey, TAggregate> @event) where TAggregate : IAggregate<TKey>
         {
             @event.Apply((dynamic)this);
 
-            OnEventApplied (@event);
+            OnEventApplied(@event);
         }
 
         private void OnEventApplied(IEvent @event)

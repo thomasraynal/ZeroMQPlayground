@@ -7,9 +7,8 @@ namespace ZeroMQPlayground.DynamicData.Shared
 {
     public interface IActor
     {
-        bool IsStarted { get; }
         Guid Id { get; }
-        Task Start();
-        Task Stop();
+        Task Run();
+        Task Destroy();
     }
 }
